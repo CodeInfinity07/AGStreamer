@@ -1,0 +1,37 @@
+ python example_audio_pcm_send.py --appId "33cd68ca871542aabbf6fd5438993c85" --channelId "3029915_378064943" --userId "ZTCN2311" --token "007eJxS
+YOi44n/n68qMRvZNPn1yPXcPf9tUmyx/vfHFXq73jXrfdxQqMBgbJ6eYWSQnWpgbmpoYJSYmJaWZpaWYmhhb
+WFoaJ1uYxl81z0wIYWDYZ/WNgZGBkYGFgZEBxGcCk8xgkgVMCjIYGxhZWhqaxhubWxiYmViaGHMwRIU4+xkZ
+GxoCAgAA///H/SiE" --audioFile ./test_data/demo.pcm --sampleRate 16000 --numOfChannel
+s 1
+sdk_library_dir: /tmp/agora_sdk_examples/agora_rtc/agora/agora_sdk
+zip_path: /tmp/agora_sdk_examples/agora_rtc/agora/agora_rtc_sdk.zip
+INFO:common.parse_args:Parsed arguments:Namespace(appId='33cd68ca871542aabbf6fd5438993c85', token='007eJxSYOi44n/n68qMRvZNPn1yPXcPf9tUmyx/vfHFXq73jXrfdxQqMBgbJ6eYWSQnWpgbmpoYJSYmJaWZpaWYmhhbWFoaJ1uYxl81z0wIYWDYZ/WNgZGBkYGFgZEBxGcCk8xgkgVMCjIYGxhZWhqaxhubWxiYmViaGHMwRIU4+xkZGxoCAgAA///H/SiE', channelId='3029915_378064943', connectionNumber=1, userId='ZTCN2311', audioFile='./test_data/demo.pcm', lowdelay=False, videoFile=None, sampleRate=16000, numOfChannels=1, fps=None, width=None, height=None, bitrate=3600, message=None, hours='0', saveToDisk=0, mode=1, value=0, dir=None, role=1)
+SESS_CTRL: version: 20250221.bdv2.5.hip.sharedlib.timeout
+ 
+SESS_CTRL: version: 20250221.bdv2.5.hip.sharedlib.timeout
+ 
+SESS_CTRL: version: 20250221.bdv2.5.hip.sharedlib.timeout
+ 
+INFO:common.example_base:------channel_id: 3029915_378064943, uid: ZTCN2311
+INFO:common.example_base:connect_and_release: 1, auto_subscribe_audio: 1
+SESS_CTRL: version: 20250221.bdv2.5.hip.sharedlib.timeout
+ 
+SESS_CTRL: version: 20250221.bdv2.5.hip.sharedlib.timeout
+ 
+SESS_CTRL: version: 20250221.bdv2.5.hip.sharedlib.timeout
+ 
+is_push_to_rtc_completed: 1765266869680, 0
+is_push_to_rtc_completed: 60, 5000.0
+is_push_to_rtc_completed: 120, 5000.0
+is_push_to_rtc_completed: 181, 5000.0
+is_push_to_rtc_completed: 241, 5000.0
+is_push_to_rtc_completed: 301, 5000.0
+is_push_to_rtc_completed: 362, 5000.0
+is_push_to_rtc_completed: 422, 5000.0
+is_push_to_rtc_completed: 482, 5000.0
+is_push_to_rtc_completed: 543, 5000.0
+is_push_to_rtc_completed: 603, 5000.0
+is_push_to_rtc_completed: 663, 5000.0
+is_push_to_rtc_completed: 723, 5000.0
+is_push_to_rtc_completed: 784, 5000.0
+is_push_to_rtc_completed: 844, 5000.0

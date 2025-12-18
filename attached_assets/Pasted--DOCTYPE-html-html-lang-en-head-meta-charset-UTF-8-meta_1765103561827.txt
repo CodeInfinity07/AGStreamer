@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agora Voice Bot</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+        }
+
+        h1 {
+            text-align: center;
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 32px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .config-section {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #333;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        input[readonly] {
+            background: #f5f5f5;
+            color: #666;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 15px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-bottom: 10px;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-primary:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-danger {
+            background: #ff4757;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #ee3344;
+        }
+
+        .btn-mute {
+            background: #ffa502;
+            color: white;
+        }
+
+        .btn-mute:hover {
+            background: #ff9000;
+        }
+
+        .btn-mute.muted {
+            background: #ff4757;
+        }
+
+        .status {
+            text-align: center;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-weight: 600;
+        }
+
+        .status.disconnected {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .status.connecting {
+            background: #cce5ff;
+            color: #004085;
+        }
+
+        .status.connected {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .users-list {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            min-height: 80px;
+        }
+
+        .users-title {
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #333;
+        }
+
+        .user-item {
+            padding: 8px 12px;
+            background: white;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .user-id {
+            font-weight: 600;
+            color: #667eea;
+        }
+
+        .user-indicator {
+            width: 10px;
+            height: 10px;
+            background: #2ecc71;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .controls {
+            display: none;
+        }
+
+        .controls.active {
+            display: block;
+        }
+
+        .volume-control {
+            margin-bottom: 20px;
+        }
+
+        .volume-slider {
+            width: 100%;
+            margin-top: 10px;
+        }
+
+        .alert {
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+
+        .alert-info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        .alert-warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+
+        .alert-danger {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .hide {
+            display: none;
+        }
+
+        .logs {
+            background: #1e1e1e;
+            color: #00ff00;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+            margin-bottom: 20px;
+        }
+
+        .log-entry {
+            margin-bottom: 5px;
+        }
+
+        .log-time {
+            color: #888;
+            margin-right: 8px;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 8px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎙️ Agora Voice Bot</h1>
+        <p class="subtitle">Join game voice chat from your browser</p>
+
+        <!-- SDK Loading Alert -->
+        <div class="alert alert-info" id="sdkLoadingAlert">
+            <span class="loading-spinner"></span> Loading Agora SDK...
+        </div>
+
+        <div class="alert alert-danger hide" id="sdkErrorAlert">
+            ❌ <strong>Failed to load Agora SDK!</strong><br>
+            Please check your internet connection and refresh the page.<br>
+            If problem persists, disable ad blockers or try a different browser.
+        </div>
+
+        <!-- Configuration Section -->
+        <div class="config-section">
+            <div class="form-group">
+                <label for="appId">App ID</label>
+                <input type="text" id="appId" placeholder="Enter your Agora App ID" value="33cd68ca871542aabbf6fd5438993c85">
+            </div>
+
+            <div class="form-group">
+                <label for="channelId">Channel ID</label>
+                <input type="text" id="channelId" value="5138256_146984180" readonly>
+            </div>
+
+            <div class="form-group">
+                <label for="userId">User ID</label>
+                <input type="text" id="userId" value="LAIL8743" readonly>
+            </div>
+
+            <div class="form-group">
+                <label for="token">Token</label>
+                <input type="text" id="token" value="007eJxSYFid+ehC7b0DP/l6kioU7+QcDXoUFNGleXFxj7Dn3u13It8rMBgbJ6eYWSQnWpgbmpoYJSYmJaWZpaWYmhhbWFoaJ1uYZoabZiaEMDC8kihgYWRgZGBhYGQA8ZnAJDOYZAGTggymhsYWRqZm8YYmZpYWJoYWBhwMPo6ePhbmJsaAAAAA//9o7Ccw" >
+            </div>
+        </div>
+
+        <!-- Status Display -->
+        <div class="status disconnected" id="status">
+            ⚪ Disconnected
+        </div>
+
+        <!-- Alert Messages -->
+        <div class="alert alert-warning" id="appIdAlert">
+            ⚠️ Don't forget to replace YOUR_APP_ID_HERE with your actual App ID!<br>
+            Find it using: <code>adb logcat -d | grep -i appid</code>
+        </div>
+
+        <!-- Users List -->
+        <div class="users-list hide" id="usersList">
+            <div class="users-title">👥 Users in Channel</div>
+            <div id="usersContainer">
+                <p style="color: #999; text-align: center;">No users yet</p>
+            </div>
+        </div>
+
+        <!-- Connect Button -->
+        <button class="btn btn-primary" id="joinBtn" disabled>
+            <span class="loading-spinner"></span> Loading SDK...
+        </button>
+
+        <!-- Controls (Hidden until connected) -->
+        <div class="controls" id="controls">
+            <button class="btn btn-mute" id="muteBtn">🔊 Mute Microphone</button>
+            
+            <div class="volume-control">
+                <label>🔊 Microphone Volume: <span id="volumeValue">100%</span></label>
+                <input type="range" min="0" max="200" value="100" class="volume-slider" id="volumeSlider">
+            </div>
+
+            <button class="btn btn-danger" id="leaveBtn">👋 Leave Channel</button>
+        </div>
+
+        <!-- Logs -->
+        <div class="logs" id="logs"></div>
+    </div>
+
+    <!-- Agora SDK - Using CDN with fallback -->
+<script src="https://cdn.jsdelivr.net/npm/agora-rtc-sdk-ng@4.24.1/AgoraRTC_N-production.min.js"></script>
+
+    <script>
+        // Global variables
+        let client = null;
+        let localAudioTrack = null;
+        let remoteUsers = {};
+        let isMuted = false;
+        let sdkLoaded = false;
+
+        // DOM Elements
+        const appIdInput = document.getElementById('appId');
+        const channelIdInput = document.getElementById('channelId');
+        const userIdInput = document.getElementById('userId');
+        const tokenInput = document.getElementById('token');
+        const statusDiv = document.getElementById('status');
+        const joinBtn = document.getElementById('joinBtn');
+        const leaveBtn = document.getElementById('leaveBtn');
+        const muteBtn = document.getElementById('muteBtn');
+        const volumeSlider = document.getElementById('volumeSlider');
+        const volumeValue = document.getElementById('volumeValue');
+        const controlsDiv = document.getElementById('controls');
+        const usersListDiv = document.getElementById('usersList');
+        const usersContainer = document.getElementById('usersContainer');
+        const logsDiv = document.getElementById('logs');
+        const appIdAlert = document.getElementById('appIdAlert');
+        const sdkLoadingAlert = document.getElementById('sdkLoadingAlert');
+        const sdkErrorAlert = document.getElementById('sdkErrorAlert');
+
+        // Logging function
+        function log(message, type = 'info') {
+            const time = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.className = 'log-entry';
+            
+            let color = '#00ff00';
+            if (type === 'error') color = '#ff4444';
+            if (type === 'warning') color = '#ffaa00';
+            
+            logEntry.innerHTML = `<span class="log-time">${time}</span><span style="color: ${color}">${message}</span>`;
+            logsDiv.appendChild(logEntry);
+            logsDiv.scrollTop = logsDiv.scrollHeight;
+            console.log(`[${time}] ${message}`);
+        }
+
+        // Update status
+        function updateStatus(status, type) {
+            statusDiv.className = `status ${type}`;
+            statusDiv.textContent = status;
+        }
+
+        // Update users list
+        function updateUsersList() {
+            const userIds = Object.keys(remoteUsers);
+            
+            if (userIds.length === 0) {
+                usersContainer.innerHTML = '<p style="color: #999; text-align: center;">Just you in the channel</p>';
+            } else {
+                usersContainer.innerHTML = userIds.map(uid => `
+                    <div class="user-item">
+                        <span>
+                            <span class="user-indicator"></span>
+                            <span class="user-id">User ${uid}</span>
+                        </span>
+                        <span style="color: #2ecc71; font-size: 12px;">🎤 Speaking</span>
+                    </div>
+                `).join('');
+            }
+        }
+
+        // Check SDK Loading
+        function checkSDKLoaded() {
+            if (typeof AgoraRTC !== 'undefined') {
+                sdkLoaded = true;
+                log('✅ Agora SDK loaded successfully');
+                sdkLoadingAlert.classList.add('hide');
+                joinBtn.disabled = false;
+                joinBtn.innerHTML = '🚀 Join Voice Chat';
+                
+                // Log SDK version
+                try {
+                    log(`📦 SDK Version: ${AgoraRTC.VERSION || 'Unknown'}`);
+                } catch (e) {
+                    log('📦 SDK Version: 4.21.0');
+                }
+            } else {
+                log('❌ Failed to load Agora SDK', 'error');
+                sdkLoadingAlert.classList.add('hide');
+                sdkErrorAlert.classList.remove('hide');
+                updateStatus('❌ SDK Load Error', 'error');
+                joinBtn.innerHTML = '❌ SDK Not Loaded';
+                
+                // Try fallback CDN after 2 seconds
+                setTimeout(tryFallbackSDK, 2000);
+            }
+        }
+
+        // Try loading from fallback CDN
+        function tryFallbackSDK() {
+            if (sdkLoaded) return;
+            
+            log('🔄 Trying fallback CDN...', 'warning');
+            const fallbackScript = document.createElement('script');
+            fallbackScript.src = 'https://unpkg.com/agora-rtc-sdk-ng@4.21.0/AgoraRTC_N.js';
+            fallbackScript.onload = () => {
+                log('✅ Loaded from fallback CDN');
+                checkSDKLoaded();
+            };
+            fallbackScript.onerror = () => {
+                log('❌ Fallback CDN also failed', 'error');
+            };
+            document.head.appendChild(fallbackScript);
+        }
+
+        // Check App ID
+        appIdInput.addEventListener('input', () => {
+            if (appIdInput.value && appIdInput.value !== 'YOUR_APP_ID_HERE') {
+                appIdAlert.classList.add('hide');
+            } else {
+                appIdAlert.classList.remove('hide');
+            }
+        });
+
+        // Join Channel
+        joinBtn.addEventListener('click', async () => {
+            // Double-check SDK is loaded
+            if (typeof AgoraRTC === 'undefined') {
+                alert('❌ Agora SDK not loaded!\n\nPlease:\n1. Check your internet connection\n2. Refresh the page\n3. Disable ad blockers\n4. Try a different browser');
+                return;
+            }
+
+            const appId = appIdInput.value.trim();
+            const channel = channelIdInput.value.trim();
+            const token = tokenInput.value.trim() || null;
+
+            if (!appId || appId === 'YOUR_APP_ID_HERE') {
+                alert('⚠️ Please enter your App ID first!\n\nFind it using: adb logcat -d | grep -i appid');
+                return;
+            }
+
+            try {
+                joinBtn.disabled = true;
+                updateStatus('🔄 Connecting...', 'connecting');
+                log('🚀 Initializing Agora client...');
+
+                // Create Agora client
+                client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
+                log('✅ Client created');
+
+                // Set up event listeners
+                client.on('user-published', async (user, mediaType) => {
+                    log(`✅ User ${user.uid} published ${mediaType}`);
+                    
+                    try {
+                        await client.subscribe(user, mediaType);
+                        log(`📥 Subscribed to user ${user.uid} ${mediaType}`);
+
+                        if (mediaType === 'audio') {
+                            remoteUsers[user.uid] = user;
+                            user.audioTrack.play();
+                            log(`🔊 Playing audio from user ${user.uid}`);
+                            updateUsersList();
+                        }
+                    } catch (error) {
+                        log(`❌ Subscribe error: ${error.message}`, 'error');
+                    }
+                });
+
+                client.on('user-unpublished', (user, mediaType) => {
+                    log(`❌ User ${user.uid} unpublished ${mediaType}`);
+                    if (mediaType === 'audio') {
+                        delete remoteUsers[user.uid];
+                        updateUsersList();
+                    }
+                });
+
+                client.on('user-left', (user) => {
+                    log(`👋 User ${user.uid} left the channel`);
+                    delete remoteUsers[user.uid];
+                    updateUsersList();
+                });
+
+                client.on('connection-state-change', (curState, prevState) => {
+                    log(`🔗 Connection: ${prevState} → ${curState}`);
+                });
+
+                // Join channel
+                log(`📡 Joining channel: ${channel}`);
+                const uid = await client.join(appId, channel, token, null);
+                log(`✅ Joined as UID: ${uid}`);
+
+                // Create microphone track
+                log('🎤 Requesting microphone access...');
+                localAudioTrack = await AgoraRTC.createMicrophoneAudioTrack({
+                    encoderConfig: {
+                        sampleRate: 48000,
+                        stereo: false,
+                        bitrate: 48,
+                    },
+                    AEC: true,  // Echo cancellation
+                    ANS: true,  // Noise suppression
+                    AGC: true   // Auto gain control
+                });
+                log('✅ Microphone track created');
+
+                // Publish audio
+                log('📤 Publishing audio track...');
+                await client.publish([localAudioTrack]);
+                log('🎙️ Published microphone - YOU ARE LIVE!');
+
+                // Update UI
+                updateStatus('✅ Connected - Microphone LIVE!', 'connected');
+                controlsDiv.classList.add('active');
+                usersListDiv.classList.remove('hide');
+                joinBtn.style.display = 'none';
+                updateUsersList();
+
+            } catch (error) {
+                log(`❌ Error: ${error.message}`, 'error');
+                console.error('Join error:', error);
+                
+                let errorMessage = `Failed to join: ${error.message}`;
+                if (error.message.includes('INVALID_PARAMETER')) {
+                    errorMessage += '\n\nCheck your App ID and Token!';
+                } else if (error.message.includes('NotAllowedError')) {
+                    errorMessage += '\n\nMicrophone access denied. Please allow microphone access in your browser settings.';
+                }
+                
+                alert(errorMessage);
+                joinBtn.disabled = false;
+                updateStatus('⚪ Disconnected', 'disconnected');
+            }
+        });
+
+        // Mute/Unmute
+        muteBtn.addEventListener('click', async () => {
+            if (!localAudioTrack) return;
+
+            isMuted = !isMuted;
+            await localAudioTrack.setEnabled(!isMuted);
+
+            if (isMuted) {
+                muteBtn.textContent = '🔇 Unmute Microphone';
+                muteBtn.classList.add('muted');
+                log('🔇 Microphone muted');
+            } else {
+                muteBtn.textContent = '🔊 Mute Microphone';
+                muteBtn.classList.remove('muted');
+                log('🔊 Microphone unmuted');
+            }
+        });
+
+        // Volume Control
+        volumeSlider.addEventListener('input', () => {
+            if (!localAudioTrack) return;
+            
+            const volume = volumeSlider.value;
+            localAudioTrack.setVolume(volume);
+            volumeValue.textContent = `${volume}%`;
+            log(`🔊 Volume set to ${volume}%`);
+        });
+
+        // Leave Channel
+        leaveBtn.addEventListener('click', async () => {
+            if (!client) return;
+
+            try {
+                log('👋 Leaving channel...');
+
+                // Close local track
+                if (localAudioTrack) {
+                    localAudioTrack.close();
+                    localAudioTrack = null;
+                }
+
+                // Leave channel
+                await client.leave();
+                log('✅ Left channel successfully');
+
+                // Reset UI
+                updateStatus('⚪ Disconnected', 'disconnected');
+                controlsDiv.classList.remove('active');
+                usersListDiv.classList.add('hide');
+                joinBtn.style.display = 'block';
+                joinBtn.disabled = false;
+                remoteUsers = {};
+                isMuted = false;
+
+            } catch (error) {
+                log(`❌ Error leaving: ${error.message}`, 'error');
+            }
+        });
+
+        // Initialize
+        window.addEventListener('load', () => {
+            log('🎙️ Agora Voice Bot Initialized');
+            log('⏳ Checking SDK status...');
+            
+            // Check SDK after a short delay
+            setTimeout(checkSDKLoaded, 500);
+        });
+
+        // Handle page unload
+        window.addEventListener('beforeunload', () => {
+            if (localAudioTrack) {
+                localAudioTrack.close();
+            }
+            if (client) {
+                client.leave();
+            }
+        });
+    </script>
+</body>
+</html>

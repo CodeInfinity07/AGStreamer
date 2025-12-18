@@ -1,0 +1,58 @@
+~/workspace$ python server/python/test_agora_connection.py --appId 33cd68ca871542aabbf6fd5438993c85 --channelId 3029915_378064943 --userId 12345 --token "007eJxSYPinY
+vKgJYFn01IzFcuK40q3X77cu1wl1TUv3NnX9oBmla4Cg7FxcoqZRXKihbmhqYlRYmJSUppZWoqpibGFpaVx
+soXp006zzIQQBgbnPVNYGRkYGVgYGBlAfCYwyQwmWcCkIIOxgZGlpaFpvLG5hYGZiaWJMQdDVIizn5GxoSE
+gAAD///fAJII="
+============================================================
+Agora Python Server SDK Connection Test
+============================================================
+
+Configuration:
+  App ID: 33cd68ca...3c85
+  Channel: 3029915_378064943
+  User ID: 12345
+  Token: [provided]
+
+Importing Agora SDK...
+sdk_library_dir: /home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/agora/agora_sdk
+zip_path: /home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/agora/agora_rtc_sdk.zip
+  SDK imported successfully!
+
+Step 1: Initializing AgoraService...
+spdlog fatal error: Cannot use size() on closed file ./agora_rtc_log/agorasdk.log
+spdlog fatal error: Cannot use size() on closed file ./agora_rtc_log/agoraapi.log
+spdlog fatal error: Cannot use size() on closed file ./agora_rtc_log/agorasdk.log
+spdlog fatal error: Cannot use size() on closed file ./agora_rtc_log/agoraapi.log
+spdlog fatal error: Cannot use size() on closed file ./agora_rtc_log/agoraapi.log
+SESS_CTRL: version: 20250221.bdv2.5.hip.sharedlib.timeout
+ 
+SESS_CTRL: version: 20250221.bdv2.5.hip.sharedlib.timeout
+ 
+SESS_CTRL: version: 20250221.bdv2.5.hip.sharedlib.timeout
+ 
+  AgoraService initialized successfully!
+
+Step 2: Creating connection configuration...
+  Configuration created!
+
+Step 3: Creating RTC connection...
+SESS_CTRL: version: 20250221.bdv2.5.hip.sharedlib.timeout
+ 
+SESS_CTRL: version: 20250221.bdv2.5.hip.sharedlib.timeout
+ 
+SESS_CTRL: version: 20250221.bdv2.5.hip.sharedlib.timeout
+ 
+  RTC connection created!
+
+Step 4: Registering connection observer...
+  Observer registered!
+
+Step 5: Connecting to channel...
+  ERROR: 'int' object has no attribute 'encode'
+Traceback (most recent call last):
+  File "/home/runner/workspace/server/python/test_agora_connection.py", line 177, in <module>
+    result = connection.connect(args.token, args.channelId, args.userId)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/agora/rtc/rtc_connection.py", line 151, in connect
+    ret = agora_rtc_conn_connect(self.conn_handle, ctypes.create_string_buffer(token.encode('utf-8')), ctypes.create_string_buffer(chan_id.encode('utf-8')), ctypes.create_string_buffer(user_id.encode('utf-8')))
+                                                                                                                                                                                         ^^^^^^^^^^^^^^
+AttributeError: 'int' object has no attribute 'encode'

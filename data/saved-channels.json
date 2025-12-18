@@ -1,0 +1,21 @@
+[
+  {
+    "id": "82503c21-63e1-4839-a7fa-bc5222cdfcaa",
+    "name": "Test Channel nem4",
+    "appId": "test_app_PP4nTt",
+    "channelId": "test_channel_FbhubF",
+    "userId": "12345",
+    "createdAt": "2025-12-08T08:03:37.729Z",
+    "updatedAt": "2025-12-08T08:03:37.729Z"
+  },
+  {
+    "id": "b5b1cea7-c56e-415a-8576-95a37c7295ad",
+    "name": "Rex",
+    "appId": "33cd68ca871542aabbf6fd5438993c85",
+    "channelId": "3029915_378064943",
+    "userId": "ZTCN2311",
+    "token": "007eJxSYPinYvKgJYFn01IzFcuK40q3X77cu1wl1TUv3NnX9oBmla4Cg7FxcoqZRXKihbmhqYlRYmJSUppZWoqpibGFpaVxsoXp006zzIQQBgbnPVNYGRkYGVgYGBlAfCYwyQwmWcCkIIOxgZGlpaFpvLG5hYGZiaWJMQdDVIizn5GxoSEgAAD///fAJII=",
+    "createdAt": "2025-12-08T08:07:55.141Z",
+    "updatedAt": "2025-12-08T08:19:39.716Z"
+  }
+]
