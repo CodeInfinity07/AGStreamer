@@ -418,6 +418,15 @@ export function useAgora(options: UseAgoraOptions = {}) {
             }
           }
           
+          // Republish microphone track when audio finishes
+          if (clientRef.current && localAudioTrackRef.current) {
+            try {
+              await clientRef.current.publish(localAudioTrackRef.current);
+            } catch {
+              // May already be published
+            }
+          }
+          
           setIsAudioPlaying(false);
           setIsAudioPaused(false);
           setAudioCurrentTime(0);
@@ -435,13 +444,23 @@ export function useAgora(options: UseAgoraOptions = {}) {
     try {
       addLog("Starting audio playback...", "info");
       
+      // Unpublish microphone track first to avoid conflicts
+      if (localAudioTrackRef.current) {
+        try {
+          await clientRef.current.unpublish(localAudioTrackRef.current);
+          addLog("Unpublished microphone for audio playback", "info");
+        } catch {
+          // May already be unpublished
+        }
+      }
+      
       if (!audioTrackPublishedRef.current) {
         await clientRef.current.publish(audioFileTrackRef.current);
         audioTrackPublishedRef.current = true;
+        addLog("Published audio file track", "info");
       }
       
       audioFileTrackRef.current.startProcessAudioBuffer({ loop: false });
-      audioFileTrackRef.current.play();
       
       setIsAudioPlaying(true);
       setIsAudioPaused(false);
@@ -478,6 +497,16 @@ export function useAgora(options: UseAgoraOptions = {}) {
         if (clientRef.current && audioTrackPublishedRef.current) {
           await clientRef.current.unpublish(audioFileTrackRef.current);
           audioTrackPublishedRef.current = false;
+        }
+        
+        // Republish microphone track
+        if (clientRef.current && localAudioTrackRef.current) {
+          try {
+            await clientRef.current.publish(localAudioTrackRef.current);
+            addLog("Republished microphone track", "info");
+          } catch {
+            // May already be published
+          }
         }
         
         if (audioTimeIntervalRef.current) {
