@@ -391,142 +391,11 @@ if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
 
-// Simple auth session storage with expiry
-interface AuthSession {
-  token: string;
-  createdAt: number;
-}
-const authSessions = new Map<string, AuthSession>();
-const AUTH_SESSION_TTL = 24 * 60 * 60 * 1000; // 24 hours
-
-// Auth middleware to protect routes
-function requireAuth(req: any, res: any, next: any) {
-  const token = req.headers.authorization?.replace("Bearer ", "");
-  if (!token) {
-    return res.status(401).json({ error: "Authentication required" });
-  }
-  
-  const session = authSessions.get(token);
-  if (!session) {
-    return res.status(401).json({ error: "Invalid or expired session" });
-  }
-  
-  // Check if session expired
-  if (Date.now() - session.createdAt > AUTH_SESSION_TTL) {
-    authSessions.delete(token);
-    return res.status(401).json({ error: "Session expired" });
-  }
-  
-  next();
-}
-
-// Cleanup expired sessions periodically
-setInterval(() => {
-  const now = Date.now();
-  for (const [token, session] of authSessions.entries()) {
-    if (now - session.createdAt > AUTH_SESSION_TTL) {
-      authSessions.delete(token);
-    }
-  }
-}, 60 * 60 * 1000); // Every hour
-
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
-  // ============================================
-  // Authentication Endpoints (public)
-  // ============================================
-
-  // Login endpoint
-  app.post("/api/auth/login", (req, res) => {
-    const { email, password } = req.body;
-    
-    const validEmail = process.env.LOGIN_EMAIL;
-    const validPassword = process.env.LOGIN_PASSWORD;
-    
-    if (!validEmail || !validPassword) {
-      res.status(500).json({ error: "Authentication not configured" });
-      return;
-    }
-    
-    if (email === validEmail && password === validPassword) {
-      const token = crypto.randomUUID();
-      authSessions.set(token, { token, createdAt: Date.now() });
-      res.json({ success: true, token });
-    } else {
-      res.status(401).json({ error: "Invalid credentials" });
-    }
-  });
-
-  // Verify auth token
-  app.get("/api/auth/verify", (req, res) => {
-    const token = req.headers.authorization?.replace("Bearer ", "");
-    if (token && authSessions.has(token)) {
-      const session = authSessions.get(token);
-      if (session && Date.now() - session.createdAt <= AUTH_SESSION_TTL) {
-        res.json({ authenticated: true });
-      } else {
-        authSessions.delete(token);
-        res.status(401).json({ authenticated: false });
-      }
-    } else {
-      res.status(401).json({ authenticated: false });
-    }
-  });
-
-  // Logout endpoint
-  app.post("/api/auth/logout", (req, res) => {
-    const token = req.headers.authorization?.replace("Bearer ", "");
-    if (token) {
-      authSessions.delete(token);
-    }
-    res.json({ success: true });
-  });
-
-  // ============================================
-  // Protected Routes (require authentication)
-  // ============================================
-
-  // Fetch VC credentials from external API (protected)
-  app.post("/api/vc/fetch-credentials", requireAuth, async (req, res) => {
-    const { code } = req.body;
-    
-    if (!code) {
-      res.status(400).json({ error: "Code is required" });
-      return;
-    }
-
-    try {
-      const response = await fetch("https://evilplanet.botpanels.live/api/jack/fetch-vc-credentials", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code }),
-      });
-
-      const data = await response.json();
-      
-      if (data.success && data.credentials) {
-        res.json({
-          success: true,
-          credentials: {
-            channel: data.credentials.channel,
-            token: data.credentials.token,
-            appId: process.env.AGORA_APP_ID || data.credentials.appId,
-            userId: process.env.AGORA_USER_ID || "12345",
-            clubName: data.credentials.clubName,
-          },
-        });
-      } else {
-        res.status(400).json({ error: data.message || "Failed to fetch credentials" });
-      }
-    } catch (error) {
-      console.error("Failed to fetch VC credentials:", error);
-      res.status(500).json({ error: "Failed to connect to credentials server" });
-    }
-  });
-
-  // Health check endpoint (public)
+  // Health check endpoint
   app.get("/api/health", (req, res) => {
     res.json({ 
       status: "ok", 
@@ -535,8 +404,8 @@ export async function registerRoutes(
     });
   });
 
-  // Create a new voice session (protected)
-  app.post("/api/sessions", requireAuth, (req, res) => {
+  // Create a new voice session
+  app.post("/api/sessions", (req, res) => {
     try {
       const data = joinSessionSchema.parse(req.body);
       
@@ -569,8 +438,8 @@ export async function registerRoutes(
     }
   });
 
-  // Update session activity (heartbeat) (protected)
-  app.post("/api/sessions/:sessionId/heartbeat", requireAuth, (req, res) => {
+  // Update session activity (heartbeat)
+  app.post("/api/sessions/:sessionId/heartbeat", (req, res) => {
     const { sessionId } = req.params;
     
     const session = sessions.get(sessionId);
@@ -588,8 +457,8 @@ export async function registerRoutes(
     });
   });
 
-  // End a voice session (protected)
-  app.delete("/api/sessions/:sessionId", requireAuth, (req, res) => {
+  // End a voice session
+  app.delete("/api/sessions/:sessionId", (req, res) => {
     const { sessionId } = req.params;
     
     if (!sessions.has(sessionId)) {
@@ -601,8 +470,8 @@ export async function registerRoutes(
     res.json({ status: "ended", sessionId });
   });
 
-  // Get active sessions for a channel (protected)
-  app.get("/api/channels/:channelId/sessions", requireAuth, (req, res) => {
+  // Get active sessions for a channel
+  app.get("/api/channels/:channelId/sessions", (req, res) => {
     const { channelId } = req.params;
     
     const channelSessions = Array.from(sessions.values())
@@ -621,8 +490,8 @@ export async function registerRoutes(
     });
   });
 
-  // Get session details (protected)
-  app.get("/api/sessions/:sessionId", requireAuth, (req, res) => {
+  // Get session details
+  app.get("/api/sessions/:sessionId", (req, res) => {
     const { sessionId } = req.params;
     
     const session = sessions.get(sessionId);
@@ -655,8 +524,8 @@ export async function registerRoutes(
   // Audio Bot API Endpoints
   // ============================================
 
-  // Upload audio file (protected)
-  app.post("/api/audio/upload", requireAuth, async (req, res) => {
+  // Upload audio file
+  app.post("/api/audio/upload", async (req, res) => {
     try {
       const chunks: Buffer[] = [];
       
@@ -714,8 +583,8 @@ export async function registerRoutes(
     }
   });
 
-  // List uploaded files (protected)
-  app.get("/api/audio/files", requireAuth, (req, res) => {
+  // List uploaded files
+  app.get("/api/audio/files", (req, res) => {
     const files = Array.from(uploadedFiles.entries()).map(([id, file]) => ({
       fileId: id,
       originalName: file.originalName,
@@ -724,8 +593,8 @@ export async function registerRoutes(
     res.json({ files });
   });
 
-  // Delete uploaded file (protected)
-  app.delete("/api/audio/files/:fileId", requireAuth, (req, res) => {
+  // Delete uploaded file
+  app.delete("/api/audio/files/:fileId", (req, res) => {
     const { fileId } = req.params;
     const file = uploadedFiles.get(fileId);
     
@@ -746,8 +615,8 @@ export async function registerRoutes(
     }
   });
 
-  // Start the audio bot process (protected)
-  app.post("/api/bot/start", requireAuth, async (req, res) => {
+  // Start the audio bot process
+  app.post("/api/bot/start", async (req, res) => {
     try {
       if (audioBotManager.isRunning()) {
         res.json({ status: "already_running", sdkAvailable: audioBotManager.isSdkAvailable() });
@@ -768,8 +637,8 @@ export async function registerRoutes(
     }
   });
 
-  // Join a channel with the bot (protected)
-  app.post("/api/bot/join", requireAuth, async (req, res) => {
+  // Join a channel with the bot
+  app.post("/api/bot/join", async (req, res) => {
     try {
       const data = botJoinSchema.parse(req.body);
       
@@ -823,8 +692,8 @@ export async function registerRoutes(
     }
   });
 
-  // Leave channel (protected)
-  app.post("/api/bot/leave", requireAuth, async (req, res) => {
+  // Leave channel
+  app.post("/api/bot/leave", async (req, res) => {
     try {
       const success = await audioBotManager.leaveChannel();
       res.json({ status: success ? "left" : "failed" });
@@ -834,8 +703,8 @@ export async function registerRoutes(
     }
   });
 
-  // Play audio file (protected)
-  app.post("/api/bot/play", requireAuth, async (req, res) => {
+  // Play audio file
+  app.post("/api/bot/play", async (req, res) => {
     try {
       const data = botPlaySchema.parse(req.body);
       
@@ -876,8 +745,8 @@ export async function registerRoutes(
     }
   });
 
-  // Stop playback (protected)
-  app.post("/api/bot/stop", requireAuth, async (req, res) => {
+  // Stop playback
+  app.post("/api/bot/stop", async (req, res) => {
     try {
       const success = await audioBotManager.stopPlayback();
       res.json({ status: success ? "stopped" : "failed" });
@@ -887,8 +756,8 @@ export async function registerRoutes(
     }
   });
 
-  // Get bot status (protected)
-  app.get("/api/bot/status", requireAuth, (req, res) => {
+  // Get bot status
+  app.get("/api/bot/status", (req, res) => {
     res.json({
       isRunning: audioBotManager.isRunning(),
       sdkAvailable: audioBotManager.isSdkAvailable(),
@@ -899,14 +768,14 @@ export async function registerRoutes(
     });
   });
 
-  // Get bot logs (protected)
-  app.get("/api/bot/logs", requireAuth, (req, res) => {
+  // Get bot logs
+  app.get("/api/bot/logs", (req, res) => {
     const limit = parseInt(req.query.limit as string) || 50;
     res.json({ logs: audioBotManager.getLogs(limit) });
   });
 
-  // Shutdown bot (protected)
-  app.post("/api/bot/shutdown", requireAuth, async (req, res) => {
+  // Shutdown bot
+  app.post("/api/bot/shutdown", async (req, res) => {
     try {
       await audioBotManager.shutdown();
       res.json({ status: "shutdown" });
@@ -981,14 +850,14 @@ export async function registerRoutes(
 
   const updateChannelSchema = createChannelSchema.partial();
 
-  // Get all saved channels (protected)
-  app.get("/api/channels/saved", requireAuth, (req, res) => {
+  // Get all saved channels
+  app.get("/api/channels/saved", (req, res) => {
     const channels = readSavedChannels();
     res.json({ channels });
   });
 
-  // Get a single saved channel (protected)
-  app.get("/api/channels/saved/:id", requireAuth, (req, res) => {
+  // Get a single saved channel
+  app.get("/api/channels/saved/:id", (req, res) => {
     const { id } = req.params;
     const channels = readSavedChannels();
     const channel = channels.find(c => c.id === id);
@@ -1001,8 +870,8 @@ export async function registerRoutes(
     res.json(channel);
   });
 
-  // Create a new saved channel (protected)
-  app.post("/api/channels/saved", requireAuth, (req, res) => {
+  // Create a new saved channel
+  app.post("/api/channels/saved", (req, res) => {
     try {
       const data = createChannelSchema.parse(req.body);
       const channels = readSavedChannels();
@@ -1031,8 +900,8 @@ export async function registerRoutes(
     }
   });
 
-  // Update a saved channel (protected)
-  app.put("/api/channels/saved/:id", requireAuth, (req, res) => {
+  // Update a saved channel
+  app.put("/api/channels/saved/:id", (req, res) => {
     try {
       const { id } = req.params;
       const data = updateChannelSchema.parse(req.body);
@@ -1065,8 +934,8 @@ export async function registerRoutes(
     }
   });
 
-  // Delete a saved channel (protected)
-  app.delete("/api/channels/saved/:id", requireAuth, (req, res) => {
+  // Delete a saved channel
+  app.delete("/api/channels/saved/:id", (req, res) => {
     const { id } = req.params;
     const channels = readSavedChannels();
     
