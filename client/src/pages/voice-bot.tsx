@@ -1,8 +1,8 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { Mic, Headphones, Bot } from "lucide-react";
+import { Mic, Headphones, Bot, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatusDisplay } from "@/components/voice-bot/status-display";
-import { ConfigForm } from "@/components/voice-bot/config-form";
+import { CodeInput } from "@/components/voice-bot/code-input";
 import { UserList } from "@/components/voice-bot/user-list";
 import { AudioControls } from "@/components/voice-bot/audio-controls";
 import { AudioFilePlayer } from "@/components/voice-bot/audio-file-player";
@@ -16,7 +16,11 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { ConnectionStatus, type VoiceConfig } from "@shared/schema";
 
-export default function VoiceBot() {
+interface VoiceBotProps {
+  onLogout: () => void;
+}
+
+export default function VoiceBot({ onLogout }: VoiceBotProps) {
   const { toast } = useToast();
   const [config, setConfig] = useState<VoiceConfig>({
     appId: "",
@@ -24,6 +28,7 @@ export default function VoiceBot() {
     userId: "",
     token: "",
   });
+  const [clubName, setClubName] = useState<string>("");
   const [localUserId, setLocalUserId] = useState<string | number | undefined>();
   const [localAudioLevel, setLocalAudioLevel] = useState(0);
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -74,6 +79,23 @@ export default function VoiceBot() {
   const isConnecting = status === ConnectionStatus.CONNECTING || status === ConnectionStatus.RECONNECTING;
   const canJoin = sdkLoaded && config.appId && config.channelId && config.userId && !isConnecting && !isConnected;
 
+  const handleCredentialsFetched = useCallback((credentials: {
+    appId: string;
+    channel: string;
+    token: string;
+    userId: string;
+    clubName: string;
+  }) => {
+    setConfig({
+      appId: credentials.appId,
+      channelId: credentials.channel,
+      userId: credentials.userId,
+      token: credentials.token,
+    });
+    setClubName(credentials.clubName || "");
+    addLog(`Credentials fetched for ${credentials.clubName || "channel"}`, "success");
+  }, [addLog]);
+
   // Session heartbeat
   useEffect(() => {
     if (sessionId && isConnected) {
@@ -83,7 +105,7 @@ export default function VoiceBot() {
         } catch (error) {
           console.error("Heartbeat failed:", error);
         }
-      }, 30000); // Every 30 seconds
+      }, 30000);
     }
     
     return () => {
@@ -98,14 +120,13 @@ export default function VoiceBot() {
     if (!config.appId || !config.channelId || !config.userId) {
       toast({
         title: "Missing Configuration",
-        description: "Please fill in all required fields",
+        description: "Please fetch credentials first using the channel code",
         variant: "destructive",
       });
       return;
     }
 
     try {
-      // Create session on backend
       const sessionRes = await apiRequest("POST", "/api/sessions", {
         channelId: config.channelId,
         userId: config.userId,
@@ -114,7 +135,6 @@ export default function VoiceBot() {
       setSessionId(sessionData.sessionId);
       addLog(`Session created: ${sessionData.sessionId}`, "info");
 
-      // Join Agora channel
       const uid = await join(
         config.appId,
         config.channelId,
@@ -124,7 +144,7 @@ export default function VoiceBot() {
       setLocalUserId(uid);
       toast({
         title: "Connected",
-        description: `Joined channel ${config.channelId} as ${uid}`,
+        description: `Joined ${clubName || config.channelId} as ${uid}`,
       });
     } catch (error) {
       toast({
@@ -133,19 +153,17 @@ export default function VoiceBot() {
         variant: "destructive",
       });
     }
-  }, [config, join, toast, addLog]);
+  }, [config, clubName, join, toast, addLog]);
 
   const handleLeave = useCallback(async () => {
-    // Stop heartbeat FIRST to prevent race condition
     if (heartbeatRef.current) {
       clearInterval(heartbeatRef.current);
       heartbeatRef.current = null;
     }
 
-    // End session on backend
     const currentSessionId = sessionId;
     if (currentSessionId) {
-      setSessionId(null); // Clear immediately to prevent further heartbeats
+      setSessionId(null);
       try {
         await apiRequest("DELETE", `/api/sessions/${currentSessionId}`);
         addLog("Session ended", "info");
@@ -163,7 +181,6 @@ export default function VoiceBot() {
     });
   }, [leave, toast, sessionId, addLog]);
 
-  // Keep refs in sync for cleanup
   useEffect(() => {
     sessionIdRef.current = sessionId;
   }, [sessionId]);
@@ -172,20 +189,18 @@ export default function VoiceBot() {
     leaveRef.current = leave;
   }, [leave]);
 
-  // Cleanup session and Agora client on unmount
   useEffect(() => {
     return () => {
-      // Stop heartbeat
       if (heartbeatRef.current) {
         clearInterval(heartbeatRef.current);
       }
-      // Leave Agora channel
       if (leaveRef.current) {
         leaveRef.current().catch(() => {});
       }
-      // End session on backend
       if (sessionIdRef.current) {
-        fetch(`/api/sessions/${sessionIdRef.current}`, { method: "DELETE" }).catch(() => {});
+        const token = localStorage.getItem("authToken");
+        const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+        fetch(`/api/sessions/${sessionIdRef.current}`, { method: "DELETE", headers }).catch(() => {});
       }
     };
   }, []);
@@ -194,7 +209,7 @@ export default function VoiceBot() {
     if (!config.appId || !config.channelId) {
       toast({
         title: "Missing Configuration",
-        description: "App ID and Channel are required to join the bot",
+        description: "Please fetch credentials first",
         variant: "destructive",
       });
       return;
@@ -211,7 +226,7 @@ export default function VoiceBot() {
     if (success) {
       toast({
         title: "Bot Connected",
-        description: `Audio bot joined channel ${config.channelId}`,
+        description: `Audio bot joined ${clubName || config.channelId}`,
       });
       addLog(`Audio bot joined channel as UID ${botUid}`, "success");
     } else {
@@ -221,7 +236,7 @@ export default function VoiceBot() {
         variant: "destructive",
       });
     }
-  }, [config, audioBot, toast, addLog]);
+  }, [config, clubName, audioBot, toast, addLog]);
 
   const handleBotLeave = useCallback(async () => {
     const success = await audioBot.leaveChannel();
@@ -237,8 +252,16 @@ export default function VoiceBot() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/10">
       <div className="max-w-2xl mx-auto px-4 py-8 md:px-8 relative">
-        <div className="absolute top-4 right-4 md:top-8 md:right-8">
+        <div className="absolute top-4 right-4 md:top-8 md:right-8 flex items-center gap-2">
           <ThemeToggle />
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={onLogout}
+            title="Logout"
+          >
+            <LogOut className="w-4 h-4" />
+          </Button>
         </div>
 
         <header className="text-center mb-8">
@@ -279,11 +302,16 @@ export default function VoiceBot() {
             networkQuality={networkQuality}
           />
 
-          <ConfigForm
-            defaultValues={config}
-            onValuesChange={setConfig}
+          <CodeInput
+            onCredentialsFetched={handleCredentialsFetched}
             disabled={isConnected || isConnecting}
           />
+
+          {clubName && !isConnected && (
+            <div className="text-center text-sm text-muted-foreground">
+              Ready to join: <span className="font-medium text-foreground">{clubName}</span>
+            </div>
+          )}
 
           {!isConnected && (
             <Button
