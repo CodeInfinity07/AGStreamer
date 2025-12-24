@@ -115,3 +115,22 @@ export const updateSavedChannelSchema = savedChannelSchema.partial().omit({
 });
 
 export type UpdateSavedChannel = z.infer<typeof updateSavedChannelSchema>;
+
+// Session usage limits
+export interface SessionLimitStatus {
+  remainingConnections: number;
+  maxConnectionsPerDay: number;
+  usedToday: number;
+  resetAt: string;
+  sessionExpiresAt?: number;
+  sessionRemainingMs?: number;
+}
+
+export interface DailyUsage {
+  dateKey: string;
+  count: number;
+}
+
+// Constants
+export const MAX_CONNECTIONS_PER_DAY = 3;
+export const MAX_SESSION_DURATION_MS = 5 * 60 * 1000; // 5 minutes
