@@ -170,6 +170,14 @@ export async function registerRoutes(
     });
   });
 
+  // Get fixed Agora config (App ID and User ID from environment)
+  app.get("/api/config/agora", requireAuth, (req, res) => {
+    res.json({
+      appId: process.env.AGORA_APP_ID || "",
+      userId: process.env.AGORA_USER_ID || "",
+    });
+  });
+
   // Get current limit status (protected)
   app.get("/api/sessions/limits", requireAuth, async (req, res) => {
     const token = req.headers.authorization?.replace("Bearer ", "") || "default";
