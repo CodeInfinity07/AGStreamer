@@ -30,9 +30,20 @@ export function useAgora(options: UseAgoraOptions = {}) {
   const [sdkLoaded, setSdkLoaded] = useState(false);
   const [sdkError, setSdkError] = useState<string | null>(null);
 
+  const [audioFileName, setAudioFileName] = useState<string | null>(null);
+  const [isAudioPlaying, setIsAudioPlaying] = useState(false);
+  const [isAudioPaused, setIsAudioPaused] = useState(false);
+  const [audioCurrentTime, setAudioCurrentTime] = useState(0);
+  const [audioDuration, setAudioDuration] = useState(0);
+  const [audioVolume, setAudioVolume] = useState(100);
+
   const clientRef = useRef<IAgoraRTCClient | null>(null);
   const localAudioTrackRef = useRef<ILocalAudioTrack | null>(null);
   const volumeIntervalRef = useRef<number | null>(null);
+  const audioFileTrackRef = useRef<IBufferSourceAudioTrack | null>(null);
+  const audioTimeIntervalRef = useRef<number | null>(null);
+  const audioFileRef = useRef<File | null>(null);
+  const audioTrackPublishedRef = useRef<boolean>(false);
 
   const addLog = useCallback((message: string, type: LogEntry["type"] = "info") => {
     const entry: LogEntry = {
@@ -301,7 +312,7 @@ export function useAgora(options: UseAgoraOptions = {}) {
 
       setRemoteUsers(new Map());
       setStatus(ConnectionStatus.DISCONNECTED);
-      setIsMuted(false);
+      setIsMuted(true);  // Reset to muted (default state)
       setNetworkQuality(NetworkQuality.UNKNOWN);
       
       // Reset audio file state

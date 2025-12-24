@@ -519,5 +519,15 @@ export async function registerRoutes(
     }
   });
 
+  // Server restart endpoint (for pm2 auto-restart on external server)
+  app.post("/api/server/restart", requireAuth, (_req, res) => {
+    res.json({ status: "restarting" });
+    // Give time for response to be sent before exiting
+    setTimeout(() => {
+      console.log("Server restart requested via API");
+      process.exit(0);
+    }, 100);
+  });
+
   return httpServer;
 }

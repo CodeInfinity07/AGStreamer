@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { Mic, Headphones, LogOut, Clock, AlertTriangle } from "lucide-react";
+import { Mic, Headphones, LogOut, Clock, AlertTriangle, RotateCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatusDisplay } from "@/components/voice-bot/status-display";
 import { CodeInput } from "@/components/voice-bot/code-input";
@@ -281,6 +281,29 @@ export default function VoiceBot({ onLogout }: VoiceBotProps) {
       <div className="max-w-2xl mx-auto px-4 py-8 md:px-8 relative">
         <div className="absolute top-4 right-4 md:top-8 md:right-8 flex items-center gap-2">
           <ThemeToggle />
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={async () => {
+              try {
+                await apiRequest("POST", "/api/server/restart");
+                toast({
+                  title: "Server Restarting",
+                  description: "The server will restart shortly. Please wait...",
+                });
+              } catch (error) {
+                toast({
+                  title: "Restart Failed",
+                  description: "Failed to restart server",
+                  variant: "destructive",
+                });
+              }
+            }}
+            title="Restart Server"
+            data-testid="button-restart-server"
+          >
+            <RotateCw className="w-4 h-4" />
+          </Button>
           <Button
             variant="outline"
             size="icon"
