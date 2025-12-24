@@ -6,6 +6,10 @@ Agora Voice Bot is a browser-based real-time voice chat application that enables
 
 **Core Purpose:** Enable users to participate in voice chat sessions directly from their browser with comprehensive audio controls and connection monitoring.
 
+**Connection Methods:**
+- **Code-based**: Enter a code to fetch credentials from external API (auto-joins after fetch)
+- **Manual**: Enter App ID, Channel ID, User ID, and Token directly
+
 **Tech Stack:**
 - Frontend: React with TypeScript, Vite build system
 - UI Framework: shadcn/ui components with Radix UI primitives, Tailwind CSS

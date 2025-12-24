@@ -3,6 +3,7 @@ import { Mic, Headphones, LogOut, Clock, AlertTriangle, RotateCw } from "lucide-
 import { Button } from "@/components/ui/button";
 import { StatusDisplay } from "@/components/voice-bot/status-display";
 import { CodeInput } from "@/components/voice-bot/code-input";
+import { ManualConnect } from "@/components/voice-bot/manual-connect";
 import { UserList } from "@/components/voice-bot/user-list";
 import { AudioControls } from "@/components/voice-bot/audio-controls";
 import { AudioFilePlayer } from "@/components/voice-bot/audio-file-player";
@@ -13,12 +14,15 @@ import { useAgora } from "@/hooks/use-agora";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { ConnectionStatus, type VoiceConfig, type SessionLimitStatus, MAX_SESSION_DURATION_MS } from "@shared/schema";
+import type { ConnectionMode } from "@/components/app-sidebar";
 
 interface VoiceBotProps {
   onLogout: () => void;
+  connectionMode: ConnectionMode;
+  onConnectionChange?: (connected: boolean) => void;
 }
 
-export default function VoiceBot({ onLogout }: VoiceBotProps) {
+export default function VoiceBot({ onLogout, connectionMode, onConnectionChange }: VoiceBotProps) {
   const { toast } = useToast();
   const [config, setConfig] = useState<VoiceConfig>({
     appId: "",
@@ -79,6 +83,10 @@ export default function VoiceBot({ onLogout }: VoiceBotProps) {
   const isConnecting = status === ConnectionStatus.CONNECTING || status === ConnectionStatus.RECONNECTING;
   const canJoin = sdkLoaded && config.appId && config.channelId && config.userId && !isConnecting && !isConnected;
 
+  useEffect(() => {
+    onConnectionChange?.(isConnected);
+  }, [isConnected, onConnectionChange]);
+
   const handleCredentialsFetched = useCallback((credentials: {
     appId: string;
     channel: string;
@@ -96,11 +104,22 @@ export default function VoiceBot({ onLogout }: VoiceBotProps) {
     setClubName(credentials.clubName || "");
     addLog(`Credentials fetched for ${credentials.clubName || "channel"}`, "success");
     
-    // Mark pending auto-join
     pendingJoinRef.current = newConfig;
   }, [addLog]);
 
-  // Session heartbeat
+  const handleManualConnect = useCallback((manualConfig: {
+    appId: string;
+    channelId: string;
+    userId: string;
+    token: string;
+  }) => {
+    setConfig(manualConfig);
+    setClubName("");
+    addLog(`Manual connection to channel: ${manualConfig.channelId}`, "info");
+    
+    pendingJoinRef.current = manualConfig;
+  }, [addLog]);
+
   useEffect(() => {
     if (sessionId && isConnected) {
       heartbeatRef.current = window.setInterval(async () => {
@@ -120,7 +139,6 @@ export default function VoiceBot({ onLogout }: VoiceBotProps) {
     };
   }, [sessionId, isConnected]);
 
-  // Countdown timer effect
   useEffect(() => {
     if (isConnected && timeRemaining !== null && timeRemaining > 0) {
       countdownRef.current = window.setInterval(() => {
@@ -141,11 +159,13 @@ export default function VoiceBot({ onLogout }: VoiceBotProps) {
     };
   }, [isConnected, timeRemaining !== null]);
 
-  const handleJoin = useCallback(async () => {
-    if (!config.appId || !config.channelId || !config.userId) {
+  const handleJoin = useCallback(async (configOverride?: VoiceConfig) => {
+    const joinConfig = configOverride || config;
+    
+    if (!joinConfig.appId || !joinConfig.channelId || !joinConfig.userId) {
       toast({
         title: "Missing Configuration",
-        description: "Please fetch credentials first using the channel code",
+        description: "Please provide App ID, Channel ID, and User ID",
         variant: "destructive",
       });
       return;
@@ -153,8 +173,8 @@ export default function VoiceBot({ onLogout }: VoiceBotProps) {
 
     try {
       const sessionRes = await apiRequest("POST", "/api/sessions", {
-        channelId: config.channelId,
-        userId: config.userId,
+        channelId: joinConfig.channelId,
+        userId: joinConfig.userId,
       });
       
       if (sessionRes.status === 429) {
@@ -176,15 +196,15 @@ export default function VoiceBot({ onLogout }: VoiceBotProps) {
       addLog(`Session expires in 5 minutes (${sessionData.limits?.remainingConnections || 0} connections remaining today)`, "warning");
 
       const uid = await join(
-        config.appId,
-        config.channelId,
-        config.token || null,
-        config.userId
+        joinConfig.appId,
+        joinConfig.channelId,
+        joinConfig.token || null,
+        joinConfig.userId
       );
       setLocalUserId(uid);
       toast({
         title: "Connected",
-        description: `Joined ${clubName || config.channelId} as ${uid}`,
+        description: `Joined ${clubName || joinConfig.channelId} as ${uid}`,
       });
     } catch (error) {
       toast({
@@ -195,17 +215,15 @@ export default function VoiceBot({ onLogout }: VoiceBotProps) {
     }
   }, [config, clubName, join, toast, addLog]);
 
-  // Auto-join effect: runs once when credentials are fetched and SDK is ready
   useEffect(() => {
     if (!pendingJoinRef.current) return;
     if (!sdkLoaded) return;
     if (isConnected || isConnecting) return;
     
-    // Clear the ref immediately to ensure single execution
+    const pendingConfig = pendingJoinRef.current;
     pendingJoinRef.current = null;
     
-    // Call handleJoin
-    handleJoin();
+    handleJoin(pendingConfig);
   }, [sdkLoaded, isConnected, isConnecting, handleJoin]);
 
   const handleLeave = useCallback(async () => {
@@ -239,7 +257,6 @@ export default function VoiceBot({ onLogout }: VoiceBotProps) {
     });
   }, [leave, toast, sessionId, addLog]);
 
-  // Auto-leave when time expires
   useEffect(() => {
     if (timeRemaining === 0 && isConnected) {
       addLog("Session time limit reached - disconnecting", "warning");
@@ -352,20 +369,29 @@ export default function VoiceBot({ onLogout }: VoiceBotProps) {
             networkQuality={networkQuality}
           />
 
-          <CodeInput
-            onCredentialsFetched={handleCredentialsFetched}
-            disabled={isConnected || isConnecting}
-          />
+          {connectionMode === "code" ? (
+            <CodeInput
+              onCredentialsFetched={handleCredentialsFetched}
+              disabled={isConnected || isConnecting}
+            />
+          ) : (
+            <ManualConnect
+              onConnect={handleManualConnect}
+              isConnecting={isConnecting}
+              isConnected={isConnected}
+              disabled={!sdkLoaded}
+            />
+          )}
 
-          {clubName && !isConnected && (
+          {clubName && !isConnected && connectionMode === "code" && (
             <div className="text-center text-sm text-muted-foreground">
               Ready to join: <span className="font-medium text-foreground">{clubName}</span>
             </div>
           )}
 
-          {!isConnected && (
+          {!isConnected && connectionMode === "code" && (
             <Button
-              onClick={handleJoin}
+              onClick={() => handleJoin()}
               disabled={!canJoin}
               className="w-full h-12 text-base font-semibold"
               data-testid="button-join"
