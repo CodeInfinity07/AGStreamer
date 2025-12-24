@@ -1,17 +1,15 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { Mic, Headphones, Bot, LogOut, Clock, AlertTriangle } from "lucide-react";
+import { Mic, Headphones, LogOut, Clock, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatusDisplay } from "@/components/voice-bot/status-display";
 import { CodeInput } from "@/components/voice-bot/code-input";
 import { UserList } from "@/components/voice-bot/user-list";
 import { AudioControls } from "@/components/voice-bot/audio-controls";
 import { AudioFilePlayer } from "@/components/voice-bot/audio-file-player";
-import { ServerAudioPlayer } from "@/components/voice-bot/server-audio-player";
 import { LogsConsole } from "@/components/voice-bot/logs-console";
 import { AlertBanner } from "@/components/voice-bot/alert-banner";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useAgora } from "@/hooks/use-agora";
-import { useAudioBot } from "@/hooks/use-audio-bot";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { ConnectionStatus, type VoiceConfig, type SessionLimitStatus, MAX_SESSION_DURATION_MS } from "@shared/schema";
@@ -38,8 +36,7 @@ export default function VoiceBot({ onLogout }: VoiceBotProps) {
   const countdownRef = useRef<number | null>(null);
   const sessionIdRef = useRef<string | null>(null);
   const leaveRef = useRef<(() => Promise<void>) | null>(null);
-  
-  const audioBot = useAudioBot();
+  const pendingJoinRef = useRef<VoiceConfig | null>(null);
   
   const {
     status,
@@ -89,14 +86,18 @@ export default function VoiceBot({ onLogout }: VoiceBotProps) {
     userId: string;
     clubName: string;
   }) => {
-    setConfig({
+    const newConfig = {
       appId: credentials.appId,
       channelId: credentials.channel,
       userId: credentials.userId,
       token: credentials.token,
-    });
+    };
+    setConfig(newConfig);
     setClubName(credentials.clubName || "");
     addLog(`Credentials fetched for ${credentials.clubName || "channel"}`, "success");
+    
+    // Mark pending auto-join
+    pendingJoinRef.current = newConfig;
   }, [addLog]);
 
   // Session heartbeat
@@ -194,6 +195,19 @@ export default function VoiceBot({ onLogout }: VoiceBotProps) {
     }
   }, [config, clubName, join, toast, addLog]);
 
+  // Auto-join effect: runs once when credentials are fetched and SDK is ready
+  useEffect(() => {
+    if (!pendingJoinRef.current) return;
+    if (!sdkLoaded) return;
+    if (isConnected || isConnecting) return;
+    
+    // Clear the ref immediately to ensure single execution
+    pendingJoinRef.current = null;
+    
+    // Call handleJoin
+    handleJoin();
+  }, [sdkLoaded, isConnected, isConnecting, handleJoin]);
+
   const handleLeave = useCallback(async () => {
     if (heartbeatRef.current) {
       clearInterval(heartbeatRef.current);
@@ -261,50 +275,6 @@ export default function VoiceBot({ onLogout }: VoiceBotProps) {
       }
     };
   }, []);
-
-  const handleBotJoin = useCallback(async () => {
-    if (!config.appId || !config.channelId) {
-      toast({
-        title: "Missing Configuration",
-        description: "Please fetch credentials first",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const botUid = 9999;
-    const success = await audioBot.joinChannel(
-      config.appId,
-      config.channelId,
-      botUid,
-      config.token || ""
-    );
-
-    if (success) {
-      toast({
-        title: "Bot Connected",
-        description: `Audio bot joined ${clubName || config.channelId}`,
-      });
-      addLog(`Audio bot joined channel as UID ${botUid}`, "success");
-    } else {
-      toast({
-        title: "Bot Connection Failed",
-        description: audioBot.error || "Failed to connect audio bot",
-        variant: "destructive",
-      });
-    }
-  }, [config, clubName, audioBot, toast, addLog]);
-
-  const handleBotLeave = useCallback(async () => {
-    const success = await audioBot.leaveChannel();
-    if (success) {
-      toast({
-        title: "Bot Disconnected",
-        description: "Audio bot left the channel",
-      });
-      addLog("Audio bot left the channel", "info");
-    }
-  }, [audioBot, toast, addLog]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/10">
@@ -450,51 +420,6 @@ export default function VoiceBot({ onLogout }: VoiceBotProps) {
               />
             </>
           )}
-
-          <div className="space-y-3">
-            <div className="flex items-center justify-between gap-2">
-              <h3 className="text-sm font-medium flex items-center gap-2">
-                <Bot className="w-4 h-4" />
-                Server Audio Bot
-              </h3>
-              {!audioBot.status.isConnected ? (
-                <Button
-                  onClick={handleBotJoin}
-                  disabled={audioBot.isLoading || !config.appId || !config.channelId}
-                  size="sm"
-                  data-testid="button-bot-join"
-                >
-                  Connect Bot
-                </Button>
-              ) : (
-                <Button
-                  onClick={handleBotLeave}
-                  disabled={audioBot.isLoading}
-                  size="sm"
-                  variant="outline"
-                  data-testid="button-bot-leave"
-                >
-                  Disconnect Bot
-                </Button>
-              )}
-            </div>
-
-            <ServerAudioPlayer
-              isConnected={audioBot.status.isConnected}
-              isPlaying={audioBot.status.isPlaying}
-              playbackProgress={audioBot.status.playbackProgress}
-              playbackDuration={audioBot.status.playbackDuration}
-              currentFile={audioBot.status.currentFile}
-              uploadedFiles={audioBot.uploadedFiles}
-              isLoading={audioBot.isLoading}
-              error={audioBot.error}
-              onUpload={audioBot.uploadFile}
-              onPlay={audioBot.playAudio}
-              onStop={audioBot.stopPlayback}
-              onDelete={audioBot.deleteFile}
-              onRefresh={audioBot.refreshFiles}
-            />
-          </div>
 
           <LogsConsole 
             logs={logs} 

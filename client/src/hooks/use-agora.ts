@@ -22,7 +22,7 @@ interface UseAgoraOptions {
 
 export function useAgora(options: UseAgoraOptions = {}) {
   const [status, setStatus] = useState<ConnectionStatusType>(ConnectionStatus.DISCONNECTED);
-  const [isMuted, setIsMuted] = useState(false);
+  const [isMuted, setIsMuted] = useState(true);
   const [volume, setVolume] = useState(100);
   const [remoteUsers, setRemoteUsers] = useState<Map<string | number, RemoteUser>>(new Map());
   const [networkQuality, setNetworkQuality] = useState<NetworkQualityType>(NetworkQuality.UNKNOWN);
@@ -212,10 +212,11 @@ export function useAgora(options: UseAgoraOptions = {}) {
       const assignedUid = await clientRef.current.join(appId, channelId, token, uid);
       addLog(`Joined as user: ${assignedUid}`, "success");
 
-      // Create and publish local audio track
+      // Create and publish local audio track (muted by default)
       localAudioTrackRef.current = await window.AgoraRTC.createMicrophoneAudioTrack();
+      localAudioTrackRef.current.setEnabled(false); // Start muted
       await clientRef.current.publish(localAudioTrackRef.current);
-      addLog("Published local audio track", "success");
+      addLog("Published local audio track (muted)", "success");
 
       // Start volume level monitoring
       volumeIntervalRef.current = window.setInterval(() => {
