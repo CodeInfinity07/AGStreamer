@@ -49,14 +49,26 @@ Preferred communication style: Simple, everyday language.
 - RESTful API endpoints for health checks and session management
 - Static file serving for production builds
 
+**Authentication:**
+- Token-based authentication with 24-hour session TTL
+- Login credentials configured via environment variables (LOGIN_EMAIL, LOGIN_PASSWORD)
+- All protected routes require Bearer token in Authorization header
+- Supports both Replit Secrets and local .env file
+
 **Session Management:**
 - Sessions stored in memory with unique UUIDs
-- Session data includes channel ID, user ID, join timestamp, and last activity
-- No authentication or authorization layer currently implemented
+- Session data includes channel ID, user ID, join timestamp, last activity, and expiry time
+- Usage limits: 3 connections per day, 5 minutes per session
+- Auto-expiry: Sessions automatically terminate after 5 minutes with server-side timeout
+- Daily usage tracking per authenticated user (resets at UTC midnight)
 
 **API Endpoints:**
 - `GET /api/health` - Health check with active session count
-- `POST /api/sessions` - Create new voice session
+- `POST /api/auth/login` - User login (returns auth token)
+- `GET /api/auth/verify` - Verify auth token
+- `POST /api/sessions` - Create new voice session (enforces daily limits)
+- `GET /api/sessions/limits` - Get current usage limits status
+- `POST /api/vc/fetch-credentials` - Fetch channel credentials via code
 - Session data validated using Zod schemas
 
 ### Voice Communication Layer
