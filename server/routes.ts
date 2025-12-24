@@ -427,11 +427,11 @@ function requireAuth(req: any, res: any, next: any) {
 // Cleanup expired sessions periodically
 setInterval(() => {
   const now = Date.now();
-  for (const [token, session] of authSessions.entries()) {
+  Array.from(authSessions.entries()).forEach(([token, session]) => {
     if (now - session.createdAt > AUTH_SESSION_TTL) {
       authSessions.delete(token);
     }
-  }
+  });
 }, 60 * 60 * 1000); // Every hour
 
 export async function registerRoutes(
@@ -709,11 +709,14 @@ export async function registerRoutes(
   // Cleanup stale sessions (sessions with no activity for 5 minutes)
   setInterval(() => {
     const staleThreshold = Date.now() - 5 * 60 * 1000;
-    for (const [id, session] of sessions.entries()) {
+    Array.from(sessions.entries()).forEach(([id, session]) => {
       if (session.lastActivity.getTime() < staleThreshold) {
+        if (session.expiryTimeout) {
+          clearTimeout(session.expiryTimeout);
+        }
         sessions.delete(id);
       }
-    }
+    });
   }, 60 * 1000); // Run cleanup every minute
 
   // ============================================

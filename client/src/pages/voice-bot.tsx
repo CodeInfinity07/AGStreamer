@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { Mic, Headphones, Bot, LogOut } from "lucide-react";
+import { Mic, Headphones, Bot, LogOut, Clock, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatusDisplay } from "@/components/voice-bot/status-display";
 import { CodeInput } from "@/components/voice-bot/code-input";
@@ -14,7 +14,7 @@ import { useAgora } from "@/hooks/use-agora";
 import { useAudioBot } from "@/hooks/use-audio-bot";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { ConnectionStatus, type VoiceConfig } from "@shared/schema";
+import { ConnectionStatus, type VoiceConfig, type SessionLimitStatus, MAX_SESSION_DURATION_MS } from "@shared/schema";
 
 interface VoiceBotProps {
   onLogout: () => void;
@@ -32,7 +32,10 @@ export default function VoiceBot({ onLogout }: VoiceBotProps) {
   const [localUserId, setLocalUserId] = useState<string | number | undefined>();
   const [localAudioLevel, setLocalAudioLevel] = useState(0);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [limits, setLimits] = useState<SessionLimitStatus | null>(null);
+  const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
   const heartbeatRef = useRef<number | null>(null);
+  const countdownRef = useRef<number | null>(null);
   const sessionIdRef = useRef<string | null>(null);
   const leaveRef = useRef<(() => Promise<void>) | null>(null);
   
@@ -116,6 +119,27 @@ export default function VoiceBot({ onLogout }: VoiceBotProps) {
     };
   }, [sessionId, isConnected]);
 
+  // Countdown timer effect
+  useEffect(() => {
+    if (isConnected && timeRemaining !== null && timeRemaining > 0) {
+      countdownRef.current = window.setInterval(() => {
+        setTimeRemaining((prev) => {
+          if (prev === null || prev <= 1000) {
+            return 0;
+          }
+          return prev - 1000;
+        });
+      }, 1000);
+    }
+    
+    return () => {
+      if (countdownRef.current) {
+        clearInterval(countdownRef.current);
+        countdownRef.current = null;
+      }
+    };
+  }, [isConnected, timeRemaining !== null]);
+
   const handleJoin = useCallback(async () => {
     if (!config.appId || !config.channelId || !config.userId) {
       toast({
@@ -131,9 +155,24 @@ export default function VoiceBot({ onLogout }: VoiceBotProps) {
         channelId: config.channelId,
         userId: config.userId,
       });
+      
+      if (sessionRes.status === 429) {
+        const errorData = await sessionRes.json();
+        setLimits(errorData.limits);
+        toast({
+          title: "Daily Limit Reached",
+          description: `You have used all ${errorData.limits.maxConnectionsPerDay} connections today. Resets at ${new Date(errorData.limits.resetAt).toLocaleTimeString()}`,
+          variant: "destructive",
+        });
+        return;
+      }
+      
       const sessionData = await sessionRes.json();
       setSessionId(sessionData.sessionId);
+      setLimits(sessionData.limits);
+      setTimeRemaining(sessionData.limits?.sessionRemainingMs || MAX_SESSION_DURATION_MS);
       addLog(`Session created: ${sessionData.sessionId}`, "info");
+      addLog(`Session expires in 5 minutes (${sessionData.limits?.remainingConnections || 0} connections remaining today)`, "warning");
 
       const uid = await join(
         config.appId,
@@ -160,6 +199,10 @@ export default function VoiceBot({ onLogout }: VoiceBotProps) {
       clearInterval(heartbeatRef.current);
       heartbeatRef.current = null;
     }
+    if (countdownRef.current) {
+      clearInterval(countdownRef.current);
+      countdownRef.current = null;
+    }
 
     const currentSessionId = sessionId;
     if (currentSessionId) {
@@ -175,11 +218,25 @@ export default function VoiceBot({ onLogout }: VoiceBotProps) {
     await leave();
     setLocalUserId(undefined);
     setLocalAudioLevel(0);
+    setTimeRemaining(null);
     toast({
       title: "Disconnected",
       description: "Left the voice channel",
     });
   }, [leave, toast, sessionId, addLog]);
+
+  // Auto-leave when time expires
+  useEffect(() => {
+    if (timeRemaining === 0 && isConnected) {
+      addLog("Session time limit reached - disconnecting", "warning");
+      toast({
+        title: "Session Expired",
+        description: "Your 5-minute session has ended",
+        variant: "destructive",
+      });
+      handleLeave();
+    }
+  }, [timeRemaining, isConnected, handleLeave, addLog, toast]);
 
   useEffect(() => {
     sessionIdRef.current = sessionId;
@@ -337,6 +394,26 @@ export default function VoiceBot({ onLogout }: VoiceBotProps) {
                 </>
               )}
             </Button>
+          )}
+
+          {isConnected && timeRemaining !== null && (
+            <div className={`flex items-center justify-center gap-2 p-3 rounded-lg ${
+              timeRemaining <= 60000 ? "bg-destructive/10 text-destructive" : "bg-muted"
+            }`}>
+              {timeRemaining <= 60000 ? (
+                <AlertTriangle className="w-4 h-4" />
+              ) : (
+                <Clock className="w-4 h-4" />
+              )}
+              <span className="font-medium" data-testid="text-time-remaining">
+                Time remaining: {Math.floor(timeRemaining / 60000)}:{String(Math.floor((timeRemaining % 60000) / 1000)).padStart(2, "0")}
+              </span>
+              {limits && (
+                <span className="text-muted-foreground text-sm">
+                  ({limits.usedToday}/{limits.maxConnectionsPerDay} connections used today)
+                </span>
+              )}
+            </div>
           )}
 
           {isConnected && (
