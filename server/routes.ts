@@ -5,6 +5,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { storage, getResetTime } from "./storage";
 import { MAX_CONNECTIONS_PER_DAY, MAX_SESSION_DURATION_MS, type SessionLimitStatus } from "@shared/schema";
+import { getSavedClubs, saveClub, deleteClub } from "./saved-clubs";
 
 // In-memory session storage
 interface VoiceSession {
@@ -142,15 +143,23 @@ export async function registerRoutes(
       const data = await response.json();
       
       if (data.success && data.credentials) {
+        const credentials = {
+          channel: data.credentials.channel,
+          token: data.credentials.token,
+          appId: process.env.AGORA_APP_ID || data.credentials.appId,
+          userId: process.env.AGORA_USER_ID || "12345",
+          clubName: data.credentials.clubName,
+        };
+        
+        // Save club to JSON file for 24 hours
+        saveClub({
+          code,
+          ...credentials,
+        });
+        
         res.json({
           success: true,
-          credentials: {
-            channel: data.credentials.channel,
-            token: data.credentials.token,
-            appId: process.env.AGORA_APP_ID || data.credentials.appId,
-            userId: process.env.AGORA_USER_ID || "12345",
-            clubName: data.credentials.clubName,
-          },
+          credentials,
         });
       } else {
         res.status(400).json({ error: data.message || "Failed to fetch credentials" });
@@ -176,6 +185,19 @@ export async function registerRoutes(
       appId: process.env.AGORA_APP_ID || "",
       userId: process.env.AGORA_USER_ID || "",
     });
+  });
+
+  // Get saved clubs
+  app.get("/api/clubs/saved", requireAuth, (req, res) => {
+    const clubs = getSavedClubs();
+    res.json({ clubs });
+  });
+
+  // Delete a saved club
+  app.delete("/api/clubs/saved/:channel", requireAuth, (req, res) => {
+    const { channel } = req.params;
+    const deleted = deleteClub(decodeURIComponent(channel));
+    res.json({ success: deleted });
   });
 
   // Get current limit status (protected)
