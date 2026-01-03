@@ -193,7 +193,7 @@ export default function VoiceBot({ onLogout, connectionMode, onConnectionChange 
       setLimits(sessionData.limits);
       setTimeRemaining(sessionData.limits?.sessionRemainingMs || MAX_SESSION_DURATION_MS);
       addLog(`Session created: ${sessionData.sessionId}`, "info");
-      addLog(`Session expires in 5 minutes (${sessionData.limits?.remainingConnections || 0} connections remaining today)`, "warning");
+      addLog(`Session expires in 30 minutes (${sessionData.limits?.remainingConnections || 0} connections remaining today)`, "warning");
 
       const uid = await join(
         joinConfig.appId,
@@ -262,7 +262,7 @@ export default function VoiceBot({ onLogout, connectionMode, onConnectionChange 
       addLog("Session time limit reached - disconnecting", "warning");
       toast({
         title: "Session Expired",
-        description: "Your 5-minute session has ended",
+        description: "Your 30-minute session has ended",
         variant: "destructive",
       });
       handleLeave();
