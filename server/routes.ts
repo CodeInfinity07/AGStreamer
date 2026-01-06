@@ -124,7 +124,7 @@ export async function registerRoutes(
   // Protected Routes (require authentication)
   // ============================================
 
-  // Fetch VC credentials from external API (protected)
+  // Fetch VC credentials from external API with fallback URLs (protected)
   app.post("/api/vc/fetch-credentials", requireAuth, async (req, res) => {
     const { code } = req.body;
     
@@ -133,41 +133,65 @@ export async function registerRoutes(
       return;
     }
 
-    try {
-      const response = await fetch("https://evilplanet.botpanels.live/api/jack/fetch-vc-credentials", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code }),
-      });
+    // Define base URLs to try in order
+    const baseUrls = [
+      "https://evilplanet.botpanels.live",
+      "https://evil2.botpanels.live",
+      "https://evil3.botpanels.live",
+      "https://evil4.botpanels.live",
+    ];
+    
+    const endpoint = "/api/jack/fetch-vc-credentials";
+    let lastError: Error | null = null;
 
-      const data = await response.json();
-      
-      if (data.success && data.credentials) {
-        const credentials = {
-          channel: data.credentials.channel,
-          token: data.credentials.token,
-          appId: process.env.AGORA_APP_ID || data.credentials.appId,
-          userId: process.env.AGORA_USER_ID || "12345",
-          clubName: data.credentials.clubName,
-        };
+    for (const baseUrl of baseUrls) {
+      try {
+        console.log(`Trying credentials fetch from: ${baseUrl}`);
         
-        // Save club to JSON file for 24 hours
-        saveClub({
-          code,
-          ...credentials,
+        const response = await fetch(`${baseUrl}${endpoint}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code }),
         });
+
+        const data = await response.json();
         
-        res.json({
-          success: true,
-          credentials,
-        });
-      } else {
-        res.status(400).json({ error: data.message || "Failed to fetch credentials" });
+        if (data.success && data.credentials) {
+          const credentials = {
+            channel: data.credentials.channel,
+            token: data.credentials.token,
+            appId: process.env.AGORA_APP_ID || data.credentials.appId,
+            userId: process.env.AGORA_USER_ID || "12345",
+            clubName: data.credentials.clubName,
+          };
+          
+          // Save club to JSON file for 24 hours
+          saveClub({
+            code,
+            ...credentials,
+          });
+          
+          console.log(`Successfully fetched credentials from: ${baseUrl}`);
+          res.json({
+            success: true,
+            credentials,
+          });
+          return;
+        } else {
+          // Invalid code or bad response - don't try other URLs for this case
+          res.status(400).json({ error: data.message || "Failed to fetch credentials" });
+          return;
+        }
+      } catch (error) {
+        console.error(`Failed to fetch from ${baseUrl}:`, error);
+        lastError = error as Error;
+        // Continue to next URL
       }
-    } catch (error) {
-      console.error("Failed to fetch VC credentials:", error);
-      res.status(500).json({ error: "Failed to connect to credentials server" });
     }
+
+    // All URLs failed
+    console.error("All credential servers failed:", lastError);
+    res.status(500).json({ error: "Failed to connect to any credentials server" });
   });
 
   // Health check endpoint (public)
