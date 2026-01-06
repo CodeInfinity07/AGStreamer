@@ -148,11 +148,24 @@ export async function registerRoutes(
       try {
         console.log(`Trying credentials fetch from: ${baseUrl}`);
         
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+        
         const response = await fetch(`${baseUrl}${endpoint}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ code }),
+          signal: controller.signal,
         });
+        
+        clearTimeout(timeoutId);
+
+        // If server didn't respond with OK status, try next URL
+        if (!response.ok) {
+          console.log(`Server ${baseUrl} returned status ${response.status}, trying next...`);
+          lastError = new Error(`Server returned ${response.status}`);
+          continue;
+        }
 
         const data = await response.json();
         
@@ -178,9 +191,10 @@ export async function registerRoutes(
           });
           return;
         } else {
-          // Invalid code or bad response - don't try other URLs for this case
-          res.status(400).json({ error: data.message || "Failed to fetch credentials" });
-          return;
+          // Server responded but no valid credentials - try next URL
+          console.log(`No valid credentials from ${baseUrl}, trying next...`);
+          lastError = new Error(data.message || "No valid credentials");
+          continue;
         }
       } catch (error) {
         console.error(`Failed to fetch from ${baseUrl}:`, error);
