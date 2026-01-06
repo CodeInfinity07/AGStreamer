@@ -133,18 +133,19 @@ export async function registerRoutes(
       return;
     }
 
-    // Define base URLs to try in order
-    const baseUrls = [
-      "https://evilplanet.botpanels.live",
-      "https://evil2.botpanels.live",
-      "https://evil3.botpanels.live",
-      "https://evil4.botpanels.live",
+    // Define base URLs to try in order with their corresponding user IDs
+    const servers = [
+      { url: "https://evilplanet.botpanels.live", userId: process.env.AGORA_USER_ID || "12345" },
+      { url: "https://evil2.botpanels.live", userId: "MJUL6435" },
+      { url: "https://evil3.botpanels.live", userId: "MYUZ6433" },
+      { url: "https://evil4.botpanels.live", userId: "DTAQ4711" },
     ];
     
     const endpoint = "/api/jack/fetch-vc-credentials";
     let lastError: Error | null = null;
 
-    for (const baseUrl of baseUrls) {
+    for (const server of servers) {
+      const baseUrl = server.url;
       try {
         console.log(`Trying credentials fetch from: ${baseUrl}`);
         
@@ -174,7 +175,7 @@ export async function registerRoutes(
             channel: data.credentials.channel,
             token: data.credentials.token,
             appId: process.env.AGORA_APP_ID || data.credentials.appId,
-            userId: process.env.AGORA_USER_ID || "12345",
+            userId: server.userId,
             clubName: data.credentials.clubName,
           };
           
