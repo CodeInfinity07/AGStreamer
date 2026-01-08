@@ -136,9 +136,9 @@ export async function registerRoutes(
     // Define base URLs to try in order with their corresponding user IDs
     const servers = [
       { url: "https://evil2.botpanels.live", userId: "MJUL6435" },
-      { url: "https://evilplanet.botpanels.live", userId: process.env.AGORA_USER_ID || "12345" },
       { url: "https://evil3.botpanels.live", userId: "MYUZ6433" },
       { url: "https://evil4.botpanels.live", userId: "DTAQ4711" },
+      { url: "https://evilplanet.botpanels.live", userId: process.env.AGORA_USER_ID || "12345" },
     ];
     
     const endpoint = "/api/jack/fetch-vc-credentials";
