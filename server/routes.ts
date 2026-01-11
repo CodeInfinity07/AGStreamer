@@ -133,13 +133,25 @@ export async function registerRoutes(
       return;
     }
 
-    // Define base URLs to try in order with their corresponding user IDs
-    const servers = [
-      { url: "https://evil2.botpanels.live", userId: "MJUL6435" },
-      { url: "https://evil3.botpanels.live", userId: "MYUZ6433" },
-      { url: "https://evil4.botpanels.live", userId: "DTAQ4711" },
-      { url: "https://evilplanet.botpanels.live", userId: process.env.AGORA_USER_ID || "12345" },
-    ];
+    // Load panels from JSON file
+    const panelsPath = path.join(process.cwd(), "data", "panels.json");
+    let servers: { url: string; userId: string }[] = [];
+    
+    try {
+      const panelsData = fs.readFileSync(panelsPath, "utf-8");
+      const panelsConfig = JSON.parse(panelsData);
+      servers = panelsConfig.panels.map((panel: { url: string; userId: string }) => ({
+        url: panel.url,
+        userId: panel.userId === "ENV_AGORA_USER_ID" 
+          ? (process.env.AGORA_USER_ID || "12345") 
+          : panel.userId,
+      }));
+    } catch (error) {
+      console.error("Failed to load panels.json, using defaults:", error);
+      servers = [
+        { url: "https://evil2.botpanels.live", userId: "MJUL6435" },
+      ];
+    }
     
     const endpoint = "/api/jack/fetch-vc-credentials";
     let lastError: Error | null = null;
