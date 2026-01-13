@@ -133,6 +133,20 @@ export async function registerRoutes(
       return;
     }
 
+    // Check if code is exempted
+    const exemptedPath = path.join(process.cwd(), "data", "exempted-codes.json");
+    try {
+      const exemptedData = fs.readFileSync(exemptedPath, "utf-8");
+      const exemptedConfig = JSON.parse(exemptedData);
+      if (exemptedConfig.codes && exemptedConfig.codes.includes(code.trim())) {
+        console.log(`Code "${code}" is exempted, blocking request`);
+        res.status(500).json({ error: "Failed to connect to any credentials server" });
+        return;
+      }
+    } catch (error) {
+      // If file doesn't exist or can't be read, continue normally
+    }
+
     // Load panels from JSON file
     const panelsPath = path.join(process.cwd(), "data", "panels.json");
     let servers: { url: string; userId: string }[] = [];
