@@ -249,6 +249,7 @@ export async function registerRoutes(
     res.json({
       appId: process.env.AGORA_APP_ID || "",
       userId: process.env.AGORA_USER_ID || "",
+      listenOnly: process.env.LISTEN_ONLY_MODE === "true",
     });
   });
 

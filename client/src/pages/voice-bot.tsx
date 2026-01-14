@@ -36,6 +36,7 @@ export default function VoiceBot({ onLogout, connectionMode, onConnectionChange 
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [limits, setLimits] = useState<SessionLimitStatus | null>(null);
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
+  const [listenOnly, setListenOnly] = useState(false);
   const heartbeatRef = useRef<number | null>(null);
   const countdownRef = useRef<number | null>(null);
   const sessionIdRef = useRef<string | null>(null);
@@ -86,6 +87,22 @@ export default function VoiceBot({ onLogout, connectionMode, onConnectionChange 
   useEffect(() => {
     onConnectionChange?.(isConnected);
   }, [isConnected, onConnectionChange]);
+
+  // Fetch listenOnly setting from server
+  useEffect(() => {
+    const fetchConfig = async () => {
+      try {
+        const response = await apiRequest("GET", "/api/config/agora");
+        if (response.ok) {
+          const data = await response.json();
+          setListenOnly(data.listenOnly === true);
+        }
+      } catch (error) {
+        console.error("Failed to fetch config:", error);
+      }
+    };
+    fetchConfig();
+  }, []);
 
   const handleCredentialsFetched = useCallback((credentials: {
     appId: string;
@@ -444,29 +461,43 @@ export default function VoiceBot({ onLogout, connectionMode, onConnectionChange 
                 localAudioLevel={localAudioLevel}
               />
 
-              <AudioControls
-                isMuted={isMuted}
-                volume={volume}
-                onMuteToggle={toggleMute}
-                onVolumeChange={setMicrophoneVolume}
-                onLeave={handleLeave}
-              />
+              {listenOnly ? (
+                <Button
+                  variant="destructive"
+                  onClick={handleLeave}
+                  className="w-full h-12 text-base font-semibold"
+                  data-testid="button-leave-listen-only"
+                >
+                  <LogOut className="w-5 h-5 mr-2" />
+                  Leave Channel
+                </Button>
+              ) : (
+                <>
+                  <AudioControls
+                    isMuted={isMuted}
+                    volume={volume}
+                    onMuteToggle={toggleMute}
+                    onVolumeChange={setMicrophoneVolume}
+                    onLeave={handleLeave}
+                  />
 
-              <AudioFilePlayer
-                isPlaying={isAudioPlaying}
-                isPaused={isAudioPaused}
-                currentTime={audioCurrentTime}
-                duration={audioDuration}
-                fileName={audioFileName}
-                volume={audioVolume}
-                onFileSelect={loadAudioFile}
-                onPlay={playAudio}
-                onPause={pauseAudio}
-                onResume={resumeAudio}
-                onStop={stopAudio}
-                onSeek={seekAudio}
-                onVolumeChange={setAudioFileVolume}
-              />
+                  <AudioFilePlayer
+                    isPlaying={isAudioPlaying}
+                    isPaused={isAudioPaused}
+                    currentTime={audioCurrentTime}
+                    duration={audioDuration}
+                    fileName={audioFileName}
+                    volume={audioVolume}
+                    onFileSelect={loadAudioFile}
+                    onPlay={playAudio}
+                    onPause={pauseAudio}
+                    onResume={resumeAudio}
+                    onStop={stopAudio}
+                    onSeek={seekAudio}
+                    onVolumeChange={setAudioFileVolume}
+                  />
+                </>
+              )}
             </>
           )}
 
