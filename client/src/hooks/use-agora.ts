@@ -1,9 +1,8 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import type { 
-  IAgoraRTCClient, 
+import type {
+  IAgoraRTCClient,
   ILocalAudioTrack,
-  IBufferSourceAudioTrack,
-  IAgoraRTCRemoteUser 
+  IAgoraRTCRemoteUser
 } from "@/lib/agora-types";
 import { 
   ConnectionStatus, 
@@ -23,27 +22,15 @@ interface UseAgoraOptions {
 export function useAgora(options: UseAgoraOptions = {}) {
   const [status, setStatus] = useState<ConnectionStatusType>(ConnectionStatus.DISCONNECTED);
   const [isMuted, setIsMuted] = useState(true);
-  const [volume, setVolume] = useState(100);
   const [remoteUsers, setRemoteUsers] = useState<Map<string | number, RemoteUser>>(new Map());
   const [networkQuality, setNetworkQuality] = useState<NetworkQualityType>(NetworkQuality.UNKNOWN);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [sdkLoaded, setSdkLoaded] = useState(false);
   const [sdkError, setSdkError] = useState<string | null>(null);
 
-  const [audioFileName, setAudioFileName] = useState<string | null>(null);
-  const [isAudioPlaying, setIsAudioPlaying] = useState(false);
-  const [isAudioPaused, setIsAudioPaused] = useState(false);
-  const [audioCurrentTime, setAudioCurrentTime] = useState(0);
-  const [audioDuration, setAudioDuration] = useState(0);
-  const [audioVolume, setAudioVolume] = useState(100);
-
   const clientRef = useRef<IAgoraRTCClient | null>(null);
   const localAudioTrackRef = useRef<ILocalAudioTrack | null>(null);
   const volumeIntervalRef = useRef<number | null>(null);
-  const audioFileTrackRef = useRef<IBufferSourceAudioTrack | null>(null);
-  const audioTimeIntervalRef = useRef<number | null>(null);
-  const audioFileRef = useRef<File | null>(null);
-  const audioTrackPublishedRef = useRef<boolean>(false);
 
   const addLog = useCallback((message: string, type: LogEntry["type"] = "info") => {
     const entry: LogEntry = {
@@ -68,7 +55,7 @@ export function useAgora(options: UseAgoraOptions = {}) {
       if (window.AgoraRTC) {
         setSdkLoaded(true);
         setSdkError(null);
-        addLog("Agora SDK loaded successfully", "success");
+        addLog("Voice engine loaded successfully", "success");
         // Set log level to error only to reduce console noise
         window.AgoraRTC.setLogLevel(4);
         return true;
@@ -88,8 +75,8 @@ export function useAgora(options: UseAgoraOptions = {}) {
       }
       if (attempts >= maxAttempts) {
         clearInterval(interval);
-        setSdkError("Failed to load Agora SDK. Please check your internet connection and refresh the page.");
-        addLog("Failed to load Agora SDK", "error");
+        setSdkError("Failed to load voice engine. Please check your internet connection and refresh the page.");
+        addLog("Failed to load voice engine", "error");
       }
     }, 100);
 
@@ -103,7 +90,7 @@ export function useAgora(options: UseAgoraOptions = {}) {
     uid?: string | number
   ) => {
     if (!window.AgoraRTC) {
-      throw new Error("Agora SDK not loaded");
+      throw new Error("Voice engine not loaded");
     }
 
     try {
@@ -275,27 +262,6 @@ export function useAgora(options: UseAgoraOptions = {}) {
         volumeIntervalRef.current = null;
       }
 
-      // Clear audio time tracking
-      if (audioTimeIntervalRef.current) {
-        clearInterval(audioTimeIntervalRef.current);
-        audioTimeIntervalRef.current = null;
-      }
-
-      // Stop, unpublish and close audio file track
-      if (audioFileTrackRef.current) {
-        audioFileTrackRef.current.stopProcessAudioBuffer();
-        if (clientRef.current && audioTrackPublishedRef.current) {
-          try {
-            await clientRef.current.unpublish(audioFileTrackRef.current);
-          } catch {
-            // Track may not be published, ignore error
-          }
-        }
-        audioTrackPublishedRef.current = false;
-        audioFileTrackRef.current.close();
-        audioFileTrackRef.current = null;
-      }
-
       // Stop and close local track
       if (localAudioTrackRef.current) {
         localAudioTrackRef.current.stop();
@@ -314,15 +280,7 @@ export function useAgora(options: UseAgoraOptions = {}) {
       setStatus(ConnectionStatus.DISCONNECTED);
       setIsMuted(true);  // Reset to muted (default state)
       setNetworkQuality(NetworkQuality.UNKNOWN);
-      
-      // Reset audio file state
-      setAudioFileName(null);
-      setIsAudioPlaying(false);
-      setIsAudioPaused(false);
-      setAudioCurrentTime(0);
-      setAudioDuration(0);
-      audioFileRef.current = null;
-      
+
       addLog("Left channel successfully", "success");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to leave channel";
@@ -330,199 +288,11 @@ export function useAgora(options: UseAgoraOptions = {}) {
     }
   }, [addLog]);
 
-  const toggleMute = useCallback(async () => {
-    if (localAudioTrackRef.current) {
-      const newMuted = !isMuted;
-      await localAudioTrackRef.current.setEnabled(!newMuted);
-      setIsMuted(newMuted);
-      addLog(newMuted ? "Microphone muted" : "Microphone unmuted", "info");
-    }
-  }, [isMuted, addLog]);
-
-  const setMicrophoneVolume = useCallback((newVolume: number) => {
-    if (localAudioTrackRef.current) {
-      // Agora volume is 0-100, we support 0-200 for boost
-      localAudioTrackRef.current.setVolume(newVolume);
-      setVolume(newVolume);
-    }
-  }, []);
-
-  const changeMicrophone = useCallback(async (deviceId: string) => {
-    if (localAudioTrackRef.current) {
-      try {
-        await localAudioTrackRef.current.setDevice(deviceId);
-        addLog("Microphone changed successfully", "success");
-      } catch (error) {
-        addLog("Failed to change microphone", "error");
-      }
-    }
-  }, [addLog]);
-
-  const loadAudioFile = useCallback(async (file: File) => {
-    if (!window.AgoraRTC) {
-      addLog("Agora SDK not loaded", "error");
-      return;
-    }
-
-    try {
-      if (audioFileTrackRef.current) {
-        audioFileTrackRef.current.stopProcessAudioBuffer();
-        audioFileTrackRef.current.close();
-        audioFileTrackRef.current = null;
-        audioTrackPublishedRef.current = false;
-      }
-
-      addLog(`Loading audio file: ${file.name}`, "info");
-      const track = await window.AgoraRTC.createBufferSourceAudioTrack({
-        source: file,
-      });
-      
-      audioFileTrackRef.current = track;
-      audioFileRef.current = file;
-      setAudioFileName(file.name);
-      setAudioDuration(track.duration);
-      setAudioCurrentTime(0);
-      setIsAudioPlaying(false);
-      setIsAudioPaused(false);
-      
-      track.setVolume(audioVolume);
-      addLog(`Audio file loaded: ${file.name} (${Math.round(track.duration)}s)`, "success");
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to load audio file";
-      addLog(message, "error");
-    }
-  }, [addLog, audioVolume]);
-
-  const startAudioTimeTracking = useCallback(() => {
-    if (audioTimeIntervalRef.current) {
-      clearInterval(audioTimeIntervalRef.current);
-    }
-    
-    audioTimeIntervalRef.current = window.setInterval(async () => {
-      if (audioFileTrackRef.current) {
-        const currentTime = audioFileTrackRef.current.getCurrentTime();
-        setAudioCurrentTime(currentTime);
-        
-        if (currentTime >= audioDuration && audioDuration > 0) {
-          if (audioTimeIntervalRef.current) {
-            clearInterval(audioTimeIntervalRef.current);
-            audioTimeIntervalRef.current = null;
-          }
-          
-          audioFileTrackRef.current.stopProcessAudioBuffer();
-          
-          if (clientRef.current && audioTrackPublishedRef.current) {
-            try {
-              await clientRef.current.unpublish(audioFileTrackRef.current);
-              audioTrackPublishedRef.current = false;
-            } catch {
-            }
-          }
-          
-          setIsAudioPlaying(false);
-          setIsAudioPaused(false);
-          setAudioCurrentTime(0);
-        }
-      }
-    }, 100);
-  }, [audioDuration]);
-
-  const playAudio = useCallback(async () => {
-    if (!audioFileTrackRef.current || !clientRef.current) {
-      addLog("No audio file loaded or not connected", "error");
-      return;
-    }
-
-    try {
-      addLog("Starting audio playback...", "info");
-      
-      if (!audioTrackPublishedRef.current) {
-        await clientRef.current.publish(audioFileTrackRef.current);
-        audioTrackPublishedRef.current = true;
-      }
-      
-      audioFileTrackRef.current.startProcessAudioBuffer({ loop: false });
-      audioFileTrackRef.current.play();
-      
-      setIsAudioPlaying(true);
-      setIsAudioPaused(false);
-      startAudioTimeTracking();
-      
-      addLog("Audio playback started", "success");
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to play audio";
-      addLog(message, "error");
-    }
-  }, [addLog, startAudioTimeTracking]);
-
-  const pauseAudio = useCallback(() => {
-    if (audioFileTrackRef.current && isAudioPlaying && !isAudioPaused) {
-      audioFileTrackRef.current.pauseProcessAudioBuffer();
-      setIsAudioPaused(true);
-      addLog("Audio paused", "info");
-    }
-  }, [isAudioPlaying, isAudioPaused, addLog]);
-
-  const resumeAudio = useCallback(() => {
-    if (audioFileTrackRef.current && isAudioPlaying && isAudioPaused) {
-      audioFileTrackRef.current.resumeProcessAudioBuffer();
-      setIsAudioPaused(false);
-      addLog("Audio resumed", "info");
-    }
-  }, [isAudioPlaying, isAudioPaused, addLog]);
-
-  const stopAudio = useCallback(async () => {
-    if (audioFileTrackRef.current) {
-      try {
-        audioFileTrackRef.current.stopProcessAudioBuffer();
-        
-        if (clientRef.current && audioTrackPublishedRef.current) {
-          await clientRef.current.unpublish(audioFileTrackRef.current);
-          audioTrackPublishedRef.current = false;
-        }
-        
-        if (audioTimeIntervalRef.current) {
-          clearInterval(audioTimeIntervalRef.current);
-          audioTimeIntervalRef.current = null;
-        }
-        
-        setIsAudioPlaying(false);
-        setIsAudioPaused(false);
-        setAudioCurrentTime(0);
-        addLog("Audio stopped", "info");
-      } catch (error) {
-        const message = error instanceof Error ? error.message : "Failed to stop audio";
-        addLog(message, "error");
-      }
-    }
-  }, [addLog]);
-
-  const seekAudio = useCallback((time: number) => {
-    if (audioFileTrackRef.current) {
-      audioFileTrackRef.current.seekAudioBuffer(time);
-      setAudioCurrentTime(time);
-    }
-  }, []);
-
-  const setAudioFileVolume = useCallback((newVolume: number) => {
-    if (audioFileTrackRef.current) {
-      audioFileTrackRef.current.setVolume(newVolume);
-    }
-    setAudioVolume(newVolume);
-  }, []);
-
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (volumeIntervalRef.current) {
         clearInterval(volumeIntervalRef.current);
-      }
-      if (audioTimeIntervalRef.current) {
-        clearInterval(audioTimeIntervalRef.current);
-      }
-      if (audioFileTrackRef.current) {
-        audioFileTrackRef.current.stopProcessAudioBuffer();
-        audioFileTrackRef.current.close();
       }
       if (localAudioTrackRef.current) {
         localAudioTrackRef.current.stop();
@@ -539,37 +309,16 @@ export function useAgora(options: UseAgoraOptions = {}) {
     // State
     status,
     isMuted,
-    volume,
     remoteUsers,
     networkQuality,
     logs,
     sdkLoaded,
     sdkError,
-    
-    // Audio file state
-    audioFileName,
-    isAudioPlaying,
-    isAudioPaused,
-    audioCurrentTime,
-    audioDuration,
-    audioVolume,
-    
+
     // Actions
     join,
     leave,
-    toggleMute,
-    setMicrophoneVolume,
-    changeMicrophone,
     addLog,
     clearLogs,
-    
-    // Audio file actions
-    loadAudioFile,
-    playAudio,
-    pauseAudio,
-    resumeAudio,
-    stopAudio,
-    seekAudio,
-    setAudioFileVolume,
   };
 }

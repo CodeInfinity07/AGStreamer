@@ -3,11 +3,24 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Key, CheckCircle, Clock, Trash2 } from "lucide-react";
+import { Loader2, Key, CheckCircle, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useQuery } from "@tanstack/react-query";
+
+// Doesn't throw on non-2xx (unlike apiRequest) so the caller can read the
+// server's error body instead of a generic connection-error message.
+async function postCredentialsRequest(code: string): Promise<Response> {
+  const token = localStorage.getItem("authToken");
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  return fetch("/api/vc/fetch-credentials", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ code }),
+    credentials: "include",
+  });
+}
 
 interface Credentials {
   appId: string;
@@ -17,33 +30,15 @@ interface Credentials {
   clubName: string;
 }
 
-interface SavedClub {
+interface RecentClub {
   code: string;
   clubName: string;
-  appId: string;
-  channel: string;
-  token: string;
-  userId: string;
-  savedAt: number;
-  expiresAt: number;
+  usedAt: number;
 }
 
 interface CodeInputProps {
   onCredentialsFetched: (credentials: Credentials) => void;
   disabled?: boolean;
-}
-
-function formatTimeRemaining(expiresAt: number): string {
-  const remaining = expiresAt - Date.now();
-  if (remaining <= 0) return "Expired";
-  
-  const hours = Math.floor(remaining / (1000 * 60 * 60));
-  const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
-  
-  if (hours > 0) {
-    return `${hours}h ${minutes}m`;
-  }
-  return `${minutes}m`;
 }
 
 export function CodeInput({ onCredentialsFetched, disabled }: CodeInputProps) {
@@ -52,14 +47,16 @@ export function CodeInput({ onCredentialsFetched, disabled }: CodeInputProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [fetchedClub, setFetchedClub] = useState<string | null>(null);
 
-  const { data: savedClubsData, isLoading: isLoadingSaved } = useQuery<{ clubs: SavedClub[] }>({
-    queryKey: ["/api/clubs/saved"],
+  const { data: recentClubsData } = useQuery<{ clubs: RecentClub[] }>({
+    queryKey: ["/api/clubs/recent"],
   });
 
-  const savedClubs = savedClubsData?.clubs || [];
+  const recentClubs = recentClubsData?.clubs || [];
 
-  const handleFetchCredentials = async () => {
-    if (!code.trim()) {
+  const handleFetchCredentials = async (codeOverride?: string) => {
+    const targetCode = (codeOverride ?? code).trim();
+
+    if (!targetCode) {
       toast({
         title: "Code Required",
         description: "Please enter a code to fetch credentials",
@@ -70,14 +67,15 @@ export function CodeInput({ onCredentialsFetched, disabled }: CodeInputProps) {
 
     setIsLoading(true);
     try {
-      const response = await apiRequest("POST", "/api/vc/fetch-credentials", { code: code.trim() });
-      
+      const response = await postCredentialsRequest(targetCode);
+
       if (response.ok) {
         const data = await response.json();
         if (data.success && data.credentials) {
+          setCode(targetCode);
           setFetchedClub(data.credentials.clubName || "Channel");
           onCredentialsFetched(data.credentials);
-          queryClient.invalidateQueries({ queryKey: ["/api/clubs/saved"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/clubs/recent"] });
           toast({
             title: "Credentials Fetched",
             description: `Ready to join ${data.credentials.clubName || "channel"}`,
@@ -104,37 +102,19 @@ export function CodeInput({ onCredentialsFetched, disabled }: CodeInputProps) {
     }
   };
 
-  const handleSelectSavedClub = (channel: string) => {
-    const club = savedClubs.find((c) => c.channel === channel);
-    if (club) {
-      setFetchedClub(club.clubName);
-      onCredentialsFetched({
-        appId: club.appId,
-        channel: club.channel,
-        token: club.token,
-        userId: club.userId,
-        clubName: club.clubName,
-      });
-      toast({
-        title: "Club Selected",
-        description: `Ready to join ${club.clubName}`,
-      });
-    }
-  };
-
-  const handleDeleteSavedClub = async (channel: string, e: React.MouseEvent) => {
+  const handleDeleteRecentClub = async (clubCode: string, e: React.MouseEvent) => {
     e.stopPropagation();
     try {
-      await apiRequest("DELETE", `/api/clubs/saved/${encodeURIComponent(channel)}`);
-      queryClient.invalidateQueries({ queryKey: ["/api/clubs/saved"] });
+      await apiRequest("DELETE", `/api/clubs/recent/${encodeURIComponent(clubCode)}`);
+      queryClient.invalidateQueries({ queryKey: ["/api/clubs/recent"] });
       toast({
         title: "Club Removed",
-        description: "Saved club has been removed",
+        description: "Club removed from recent list",
       });
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to remove saved club",
+        description: "Failed to remove club",
         variant: "destructive",
       });
     }
@@ -154,52 +134,42 @@ export function CodeInput({ onCredentialsFetched, disabled }: CodeInputProps) {
           Channel Code
         </CardTitle>
         <CardDescription>
-          Enter a code to fetch credentials or select a saved club
+          Enter a code to fetch credentials or pick a recent club
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {savedClubs.length > 0 && (
+        {recentClubs.length > 0 && (
           <div className="space-y-2">
-            <Label>Saved Clubs</Label>
-            <Select onValueChange={handleSelectSavedClub} disabled={disabled}>
-              <SelectTrigger data-testid="select-saved-club">
-                <SelectValue placeholder="Select a saved club..." />
-              </SelectTrigger>
-              <SelectContent>
-                {savedClubs.map((club) => (
-                  <SelectItem key={club.channel} value={club.channel}>
-                    <div className="flex items-center justify-between w-full gap-4">
-                      <span>{club.clubName}</span>
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <Clock className="w-3 h-3" />
-                        <span>{formatTimeRemaining(club.expiresAt)}</span>
-                      </div>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {savedClubs.length > 0 && (
-              <div className="flex flex-wrap gap-2 mt-2">
-                {savedClubs.map((club) => (
-                  <div
-                    key={club.channel}
-                    className="flex items-center gap-2 text-xs bg-muted px-2 py-1 rounded-md"
+            <Label>Recent Clubs</Label>
+            <div className="max-h-56 overflow-y-auto rounded-md border divide-y" data-testid="list-recent-clubs">
+              {recentClubs.map((club) => (
+                <div
+                  key={club.code}
+                  className="flex items-center justify-between gap-2"
+                >
+                  <button
+                    type="button"
+                    onClick={() => handleFetchCredentials(club.code)}
+                    disabled={disabled || isLoading}
+                    className="flex-1 min-w-0 text-left px-3 py-2 hover:bg-muted/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    data-testid={`button-recent-club-${club.code}`}
                   >
-                    <span>{club.clubName}</span>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-4 w-4 p-0"
-                      onClick={(e) => handleDeleteSavedClub(club.channel, e)}
-                      data-testid={`button-delete-club-${club.channel}`}
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
+                    <div className="text-sm font-medium truncate">{club.clubName || club.code}</div>
+                    <div className="text-xs text-muted-foreground truncate">{club.code}</div>
+                  </button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 shrink-0 mr-2"
+                    onClick={(e) => handleDeleteRecentClub(club.code, e)}
+                    disabled={disabled || isLoading}
+                    data-testid={`button-delete-club-${club.code}`}
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </Button>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
@@ -217,7 +187,7 @@ export function CodeInput({ onCredentialsFetched, disabled }: CodeInputProps) {
               data-testid="input-channel-code"
             />
             <Button
-              onClick={handleFetchCredentials}
+              onClick={() => handleFetchCredentials()}
               disabled={disabled || isLoading || !code.trim()}
               data-testid="button-fetch-credentials"
             >
@@ -232,7 +202,7 @@ export function CodeInput({ onCredentialsFetched, disabled }: CodeInputProps) {
             </Button>
           </div>
         </div>
-        
+
         {fetchedClub && (
           <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
             <CheckCircle className="w-4 h-4" />

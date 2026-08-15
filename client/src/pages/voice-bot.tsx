@@ -3,10 +3,8 @@ import { Mic, Headphones, LogOut, Clock, AlertTriangle, RotateCw } from "lucide-
 import { Button } from "@/components/ui/button";
 import { StatusDisplay } from "@/components/voice-bot/status-display";
 import { CodeInput } from "@/components/voice-bot/code-input";
-import { ManualConnect } from "@/components/voice-bot/manual-connect";
 import { UserList } from "@/components/voice-bot/user-list";
 import { AudioControls } from "@/components/voice-bot/audio-controls";
-import { AudioFilePlayer } from "@/components/voice-bot/audio-file-player";
 import { LogsConsole } from "@/components/voice-bot/logs-console";
 import { AlertBanner } from "@/components/voice-bot/alert-banner";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -14,15 +12,13 @@ import { useAgora } from "@/hooks/use-agora";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { ConnectionStatus, type VoiceConfig, type SessionLimitStatus, MAX_SESSION_DURATION_MS } from "@shared/schema";
-import type { ConnectionMode } from "@/components/app-sidebar";
 
 interface VoiceBotProps {
   onLogout: () => void;
-  connectionMode: ConnectionMode;
   onConnectionChange?: (connected: boolean) => void;
 }
 
-export default function VoiceBot({ onLogout, connectionMode, onConnectionChange }: VoiceBotProps) {
+export default function VoiceBot({ onLogout, onConnectionChange }: VoiceBotProps) {
   const { toast } = useToast();
   const [config, setConfig] = useState<VoiceConfig>({
     appId: "",
@@ -36,7 +32,6 @@ export default function VoiceBot({ onLogout, connectionMode, onConnectionChange 
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [limits, setLimits] = useState<SessionLimitStatus | null>(null);
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
-  const [listenOnly, setListenOnly] = useState(false);
   const heartbeatRef = useRef<number | null>(null);
   const countdownRef = useRef<number | null>(null);
   const sessionIdRef = useRef<string | null>(null);
@@ -46,31 +41,15 @@ export default function VoiceBot({ onLogout, connectionMode, onConnectionChange 
   const {
     status,
     isMuted,
-    volume,
     remoteUsers,
     networkQuality,
     logs,
     sdkLoaded,
     sdkError,
-    audioFileName,
-    isAudioPlaying,
-    isAudioPaused,
-    audioCurrentTime,
-    audioDuration,
-    audioVolume,
     join,
     leave,
-    toggleMute,
-    setMicrophoneVolume,
     clearLogs,
     addLog,
-    loadAudioFile,
-    playAudio,
-    pauseAudio,
-    resumeAudio,
-    stopAudio,
-    seekAudio,
-    setAudioFileVolume,
   } = useAgora({
     onVolumeIndicator: (volumes) => {
       const local = volumes.find((v) => v.uid === localUserId);
@@ -87,22 +66,6 @@ export default function VoiceBot({ onLogout, connectionMode, onConnectionChange 
   useEffect(() => {
     onConnectionChange?.(isConnected);
   }, [isConnected, onConnectionChange]);
-
-  // Fetch listenOnly setting from server
-  useEffect(() => {
-    const fetchConfig = async () => {
-      try {
-        const response = await apiRequest("GET", "/api/config/agora");
-        if (response.ok) {
-          const data = await response.json();
-          setListenOnly(data.listenOnly === true);
-        }
-      } catch (error) {
-        console.error("Failed to fetch config:", error);
-      }
-    };
-    fetchConfig();
-  }, []);
 
   const handleCredentialsFetched = useCallback((credentials: {
     appId: string;
@@ -122,19 +85,6 @@ export default function VoiceBot({ onLogout, connectionMode, onConnectionChange 
     addLog(`Credentials fetched for ${credentials.clubName || "channel"}`, "success");
     
     pendingJoinRef.current = newConfig;
-  }, [addLog]);
-
-  const handleManualConnect = useCallback((manualConfig: {
-    appId: string;
-    channelId: string;
-    userId: string;
-    token: string;
-  }) => {
-    setConfig(manualConfig);
-    setClubName("");
-    addLog(`Manual connection to channel: ${manualConfig.channelId}`, "info");
-    
-    pendingJoinRef.current = manualConfig;
   }, [addLog]);
 
   useEffect(() => {
@@ -357,7 +307,7 @@ export default function VoiceBot({ onLogout, connectionMode, onConnectionChange 
               className="text-3xl md:text-4xl font-bold tracking-tight"
               data-testid="text-page-title"
             >
-              Agora Voice Bot
+              Voice Listener
             </h1>
           </div>
           <p className="text-muted-foreground text-sm md:text-base">
@@ -369,7 +319,7 @@ export default function VoiceBot({ onLogout, connectionMode, onConnectionChange 
           {!sdkLoaded && !sdkError && (
             <AlertBanner
               type="loading"
-              message="Loading Agora SDK..."
+              message="Loading voice engine..."
             />
           )}
 
@@ -386,27 +336,18 @@ export default function VoiceBot({ onLogout, connectionMode, onConnectionChange 
             networkQuality={networkQuality}
           />
 
-          {connectionMode === "code" ? (
-            <CodeInput
-              onCredentialsFetched={handleCredentialsFetched}
-              disabled={isConnected || isConnecting}
-            />
-          ) : (
-            <ManualConnect
-              onConnect={handleManualConnect}
-              isConnecting={isConnecting}
-              isConnected={isConnected}
-              disabled={!sdkLoaded}
-            />
-          )}
+          <CodeInput
+            onCredentialsFetched={handleCredentialsFetched}
+            disabled={isConnected || isConnecting}
+          />
 
-          {clubName && !isConnected && connectionMode === "code" && (
+          {clubName && !isConnected && (
             <div className="text-center text-sm text-muted-foreground">
               Ready to join: <span className="font-medium text-foreground">{clubName}</span>
             </div>
           )}
 
-          {!isConnected && connectionMode === "code" && (
+          {!isConnected && (
             <Button
               onClick={() => handleJoin()}
               disabled={!canJoin}
@@ -461,43 +402,7 @@ export default function VoiceBot({ onLogout, connectionMode, onConnectionChange 
                 localAudioLevel={localAudioLevel}
               />
 
-              {listenOnly ? (
-                <Button
-                  variant="destructive"
-                  onClick={handleLeave}
-                  className="w-full h-12 text-base font-semibold"
-                  data-testid="button-leave-listen-only"
-                >
-                  <LogOut className="w-5 h-5 mr-2" />
-                  Leave Channel
-                </Button>
-              ) : (
-                <>
-                  <AudioControls
-                    isMuted={isMuted}
-                    volume={volume}
-                    onMuteToggle={toggleMute}
-                    onVolumeChange={setMicrophoneVolume}
-                    onLeave={handleLeave}
-                  />
-
-                  <AudioFilePlayer
-                    isPlaying={isAudioPlaying}
-                    isPaused={isAudioPaused}
-                    currentTime={audioCurrentTime}
-                    duration={audioDuration}
-                    fileName={audioFileName}
-                    volume={audioVolume}
-                    onFileSelect={loadAudioFile}
-                    onPlay={playAudio}
-                    onPause={pauseAudio}
-                    onResume={resumeAudio}
-                    onStop={stopAudio}
-                    onSeek={seekAudio}
-                    onVolumeChange={setAudioFileVolume}
-                  />
-                </>
-              )}
+              <AudioControls onLeave={handleLeave} />
             </>
           )}
 
@@ -508,7 +413,7 @@ export default function VoiceBot({ onLogout, connectionMode, onConnectionChange 
         </div>
 
         <footer className="mt-8 text-center text-xs text-muted-foreground">
-          <p>Powered by Agora RTC SDK</p>
+          <p>Voice Listener</p>
         </footer>
       </div>
     </div>

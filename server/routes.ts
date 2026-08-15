@@ -5,7 +5,11 @@ import * as fs from "fs";
 import * as path from "path";
 import { storage, getResetTime } from "./storage";
 import { MAX_CONNECTIONS_PER_DAY, MAX_SESSION_DURATION_MS, type SessionLimitStatus } from "@shared/schema";
-import { getSavedClubs, saveClub, deleteClub } from "./saved-clubs";
+import { getRecentClubs, addRecentClub, deleteRecentClub } from "./recent-clubs";
+import { getUsers, addUser, deleteUser, verifyLogin, type UserRole } from "./users";
+
+const PLAYER_API_URL = process.env.PLAYER_API_URL || "https://playerapi.xorbots.live";
+const PLAYER_API_KEY = process.env.PLAYER_API_KEY || "xVsQMpjTdgnZ6nw0p73fI_J_9CkXmDRjUNtAKHgnmKY";
 
 // In-memory session storage
 interface VoiceSession {
@@ -31,6 +35,8 @@ const joinSessionSchema = z.object({
 interface AuthSession {
   token: string;
   createdAt: number;
+  userId: string;
+  role: UserRole;
 }
 const authSessions = new Map<string, AuthSession>();
 const AUTH_SESSION_TTL = 24 * 60 * 60 * 1000; // 24 hours
@@ -41,18 +47,28 @@ function requireAuth(req: any, res: any, next: any) {
   if (!token) {
     return res.status(401).json({ error: "Authentication required" });
   }
-  
+
   const session = authSessions.get(token);
   if (!session) {
     return res.status(401).json({ error: "Invalid or expired session" });
   }
-  
+
   // Check if session expired
   if (Date.now() - session.createdAt > AUTH_SESSION_TTL) {
     authSessions.delete(token);
     return res.status(401).json({ error: "Session expired" });
   }
-  
+
+  req.authUserId = session.userId;
+  req.authRole = session.role;
+  next();
+}
+
+// Admin-only middleware, used after requireAuth
+function requireAdmin(req: any, res: any, next: any) {
+  if (req.authRole !== "admin") {
+    return res.status(403).json({ error: "Admin access required" });
+  }
   next();
 }
 
@@ -77,22 +93,26 @@ export async function registerRoutes(
   // Login endpoint
   app.post("/api/auth/login", (req, res) => {
     const { email, password } = req.body;
-    
-    const validEmail = process.env.LOGIN_EMAIL;
-    const validPassword = process.env.LOGIN_PASSWORD;
-    
-    if (!validEmail || !validPassword) {
+
+    if (!email || !password) {
+      res.status(401).json({ error: "Invalid credentials" });
+      return;
+    }
+
+    if (getUsers().length === 0) {
       res.status(500).json({ error: "Authentication not configured" });
       return;
     }
-    
-    if (email === validEmail && password === validPassword) {
-      const token = crypto.randomUUID();
-      authSessions.set(token, { token, createdAt: Date.now() });
-      res.json({ success: true, token });
-    } else {
+
+    const user = verifyLogin(email, password);
+    if (!user) {
       res.status(401).json({ error: "Invalid credentials" });
+      return;
     }
+
+    const token = crypto.randomUUID();
+    authSessions.set(token, { token, createdAt: Date.now(), userId: user.id, role: user.role });
+    res.json({ success: true, token, role: user.role });
   });
 
   // Verify auth token
@@ -101,7 +121,7 @@ export async function registerRoutes(
     if (token && authSessions.has(token)) {
       const session = authSessions.get(token);
       if (session && Date.now() - session.createdAt <= AUTH_SESSION_TTL) {
-        res.json({ authenticated: true });
+        res.json({ authenticated: true, role: session.role });
       } else {
         authSessions.delete(token);
         res.status(401).json({ authenticated: false });
@@ -167,7 +187,7 @@ export async function registerRoutes(
       ];
     }
     
-    const endpoint = "/api/jack/fetch-vc-credentials";
+    const endpoint = "/api/vc/fetch-credentials";
     let lastError: Error | null = null;
 
     for (const server of servers) {
@@ -201,14 +221,14 @@ export async function registerRoutes(
             channel: data.credentials.channel,
             token: data.credentials.token,
             appId: process.env.AGORA_APP_ID || data.credentials.appId,
-            userId: server.userId,
+            userId: data.credentials.userId || server.userId,
             clubName: data.credentials.clubName,
           };
           
-          // Save club to JSON file for 24 hours
-          saveClub({
+          // Track this club in the recent clubs list (code + name only)
+          addRecentClub({
             code,
-            ...credentials,
+            clubName: credentials.clubName,
           });
           
           console.log(`Successfully fetched credentials from: ${baseUrl}`);
@@ -249,21 +269,119 @@ export async function registerRoutes(
     res.json({
       appId: process.env.AGORA_APP_ID || "",
       userId: process.env.AGORA_USER_ID || "",
-      listenOnly: process.env.LISTEN_ONLY_MODE === "true",
     });
   });
 
-  // Get saved clubs
-  app.get("/api/clubs/saved", requireAuth, (req, res) => {
-    const clubs = getSavedClubs();
+  // Get recent clubs (last 15, code + name only)
+  app.get("/api/clubs/recent", requireAuth, (req, res) => {
+    const clubs = getRecentClubs();
     res.json({ clubs });
   });
 
-  // Delete a saved club
-  app.delete("/api/clubs/saved/:channel", requireAuth, (req, res) => {
-    const { channel } = req.params;
-    const deleted = deleteClub(decodeURIComponent(channel));
+  // Delete a recent club
+  app.delete("/api/clubs/recent/:code", requireAuth, (req, res) => {
+    const { code } = req.params;
+    const deleted = deleteRecentClub(decodeURIComponent(code));
     res.json({ success: deleted });
+  });
+
+  // ============================================
+  // User Management (admin only)
+  // ============================================
+
+  const createUserSchema = z.object({
+    email: z.string().email(),
+    password: z.string().min(6, "Password must be at least 6 characters"),
+    role: z.enum(["admin", "user"]),
+  });
+
+  // List users (admin only)
+  app.get("/api/users", requireAuth, requireAdmin, (req, res) => {
+    res.json({ users: getUsers() });
+  });
+
+  // Add a user (admin only)
+  app.post("/api/users", requireAuth, requireAdmin, (req, res) => {
+    try {
+      const data = createUserSchema.parse(req.body);
+      const user = addUser(data);
+      res.status(201).json(user);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        res.status(400).json({ error: "Validation failed", details: error.errors });
+      } else {
+        res.status(400).json({ error: error instanceof Error ? error.message : "Failed to add user" });
+      }
+    }
+  });
+
+  // Remove a user (admin only)
+  app.delete("/api/users/:id", requireAuth, requireAdmin, (req: any, res) => {
+    const { id } = req.params;
+
+    if (id === req.authUserId) {
+      res.status(400).json({ error: "You cannot remove your own account" });
+      return;
+    }
+
+    try {
+      deleteUser(id);
+      // Invalidate any active sessions belonging to the removed user
+      Array.from(authSessions.entries()).forEach(([token, session]) => {
+        if (session.userId === id) {
+          authSessions.delete(token);
+        }
+      });
+      res.json({ success: true });
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : "Failed to remove user" });
+    }
+  });
+
+  // Batch player lookup (name/avatar info) via xorbots player API (protected)
+  app.post("/api/players/batch", requireAuth, async (req, res) => {
+    const raw = Array.isArray(req.body?.gcs) ? req.body.gcs : [];
+    const gcs = Array.from(
+      new Set(
+        raw
+          .map((v: unknown) => String(v).trim())
+          .filter((v: string) => v.length > 0)
+      )
+    );
+
+    if (gcs.length === 0) {
+      res.json({ results: [] });
+      return;
+    }
+
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+      const response = await fetch(`${PLAYER_API_URL}/players/batch`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${PLAYER_API_KEY}`,
+        },
+        body: JSON.stringify({ gcs }),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        res.status(502).json({ error: "Player lookup failed" });
+        return;
+      }
+
+      const data = await response.json();
+      const results = Array.isArray(data) ? data : (data.results ?? []);
+      res.json({ results });
+    } catch (error) {
+      console.error("Player lookup failed:", error);
+      res.status(502).json({ error: "Player lookup failed" });
+    }
   });
 
   // Get current limit status (protected)

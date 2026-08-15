@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Radio, Settings, Hash } from "lucide-react";
+import { Radio, Settings, Users } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -14,12 +14,14 @@ import {
 } from "@/components/ui/sidebar";
 import { Badge } from "@/components/ui/badge";
 
-export type ConnectionMode = "code" | "manual";
+export type ConnectionMode = "code";
 
 interface AppSidebarProps {
   mode: ConnectionMode;
   onModeChange: (mode: ConnectionMode) => void;
   isConnected: boolean;
+  isAdmin?: boolean;
+  onOpenUsers?: () => void;
 }
 
 const menuItems = [
@@ -29,15 +31,9 @@ const menuItems = [
     icon: Radio,
     description: "Enter a code to fetch credentials",
   },
-  {
-    title: "Manual Connect",
-    mode: "manual" as ConnectionMode,
-    icon: Hash,
-    description: "Enter channel ID and token directly",
-  },
 ];
 
-export function AppSidebar({ mode, onModeChange, isConnected }: AppSidebarProps) {
+export function AppSidebar({ mode, onModeChange, isConnected, isAdmin, onOpenUsers }: AppSidebarProps) {
   return (
     <Sidebar>
       <SidebarHeader className="p-4 border-b">
@@ -83,6 +79,25 @@ export function AppSidebar({ mode, onModeChange, isConnected }: AppSidebarProps)
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {isAdmin && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Administration</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    onClick={onOpenUsers}
+                    data-testid="button-open-users"
+                  >
+                    <Users className="w-4 h-4" />
+                    <span>Users</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
       <SidebarFooter className="p-4 border-t">
         <p className="text-xs text-muted-foreground text-center">

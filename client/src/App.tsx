@@ -7,18 +7,17 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/theme-provider";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar, type ConnectionMode } from "@/components/app-sidebar";
+import { UsersDialog } from "@/components/users-dialog";
 import NotFound from "@/pages/not-found";
 import VoiceBot from "@/pages/voice-bot";
 import Login from "@/pages/login";
 
-function Router({ 
-  isAuthenticated, 
+function Router({
+  isAuthenticated,
   onLogout,
-  connectionMode,
-}: { 
-  isAuthenticated: boolean; 
+}: {
+  isAuthenticated: boolean;
   onLogout: () => void;
-  connectionMode: ConnectionMode;
 }) {
   if (!isAuthenticated) {
     return null;
@@ -26,7 +25,7 @@ function Router({
 
   return (
     <Switch>
-      <Route path="/" component={() => <VoiceBot onLogout={onLogout} connectionMode={connectionMode} />} />
+      <Route path="/" component={() => <VoiceBot onLogout={onLogout} />} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -36,8 +35,10 @@ function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [authToken, setAuthToken] = useState<string | null>(null);
+  const [role, setRole] = useState<string | null>(null);
   const [connectionMode, setConnectionMode] = useState<ConnectionMode>("code");
   const [isConnected, setIsConnected] = useState(false);
+  const [usersDialogOpen, setUsersDialogOpen] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem("authToken");
@@ -45,16 +46,20 @@ function App() {
       fetch("/api/auth/verify", {
         headers: { Authorization: `Bearer ${token}` },
       })
-        .then((res) => {
+        .then(async (res) => {
           if (res.ok) {
+            const data = await res.json();
             setAuthToken(token);
+            setRole(data.role || null);
             setIsAuthenticated(true);
           } else {
             localStorage.removeItem("authToken");
+            localStorage.removeItem("userEmail");
           }
         })
         .catch(() => {
           localStorage.removeItem("authToken");
+          localStorage.removeItem("userEmail");
         })
         .finally(() => {
           setIsLoading(false);
@@ -64,9 +69,10 @@ function App() {
     }
   }, []);
 
-  const handleLoginSuccess = () => {
+  const handleLoginSuccess = (loginRole: string) => {
     const token = localStorage.getItem("authToken");
     setAuthToken(token);
+    setRole(loginRole || null);
     setIsAuthenticated(true);
   };
 
@@ -79,7 +85,9 @@ function App() {
       }).catch(() => {});
     }
     localStorage.removeItem("authToken");
+    localStorage.removeItem("userEmail");
     setAuthToken(null);
+    setRole(null);
     setIsAuthenticated(false);
   };
 
@@ -108,21 +116,29 @@ function App() {
           ) : (
             <SidebarProvider style={sidebarStyle as React.CSSProperties}>
               <div className="flex min-h-screen w-full">
-                <AppSidebar 
-                  mode={connectionMode} 
+                <AppSidebar
+                  mode={connectionMode}
                   onModeChange={setConnectionMode}
                   isConnected={isConnected}
+                  isAdmin={role === "admin"}
+                  onOpenUsers={() => setUsersDialogOpen(true)}
                 />
                 <main className="flex-1 overflow-auto">
                   <div className="sticky top-0 z-10 bg-background/80 backdrop-blur-sm border-b p-2">
                     <SidebarTrigger data-testid="button-sidebar-toggle" />
                   </div>
-                  <VoiceBot 
-                    onLogout={handleLogout} 
-                    connectionMode={connectionMode}
+                  <VoiceBot
+                    onLogout={handleLogout}
                     onConnectionChange={setIsConnected}
                   />
                 </main>
+                {role === "admin" && (
+                  <UsersDialog
+                    open={usersDialogOpen}
+                    onOpenChange={setUsersDialogOpen}
+                    currentUserEmail={localStorage.getItem("userEmail") || undefined}
+                  />
+                )}
               </div>
             </SidebarProvider>
           )}

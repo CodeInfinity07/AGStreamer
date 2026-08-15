@@ -289,7 +289,7 @@ export function ConfigForm({ defaultValues, onValuesChange, disabled }: ConfigFo
         <Input
           id="appId"
           type="text"
-          placeholder="Enter your Agora App ID"
+          placeholder="Enter your App ID"
           className={cn(
             "h-12 px-4 text-[15px]",
             form.formState.errors.appId && "border-destructive"

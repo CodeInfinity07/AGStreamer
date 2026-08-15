@@ -8,7 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 
 interface LoginProps {
-  onLoginSuccess: () => void;
+  onLoginSuccess: (role: string) => void;
 }
 
 export default function Login({ onLoginSuccess }: LoginProps) {
@@ -40,12 +40,13 @@ export default function Login({ onLoginSuccess }: LoginProps) {
         const data = await response.json();
         if (data.token) {
           localStorage.setItem("authToken", data.token);
+          localStorage.setItem("userEmail", email);
         }
         toast({
           title: "Login Successful",
           description: "Welcome back!",
         });
-        onLoginSuccess();
+        onLoginSuccess(data.role);
       } else {
         const data = await response.json();
         toast({
@@ -74,7 +75,7 @@ export default function Login({ onLoginSuccess }: LoginProps) {
               <Headphones className="w-8 h-8 text-primary" />
             </div>
           </div>
-          <CardTitle className="text-2xl">Agora Voice Bot</CardTitle>
+          <CardTitle className="text-2xl">Voice Listener</CardTitle>
           <CardDescription>Sign in to access the voice bot</CardDescription>
         </CardHeader>
         <CardContent>
