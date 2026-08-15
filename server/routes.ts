@@ -240,7 +240,7 @@ export async function registerRoutes(
           };
           
           // Track this club in the recent clubs list (code + name only)
-          addRecentClub({
+          addRecentClub(req.authUserId, {
             code,
             clubName: credentials.clubName,
           });
@@ -286,16 +286,16 @@ export async function registerRoutes(
     });
   });
 
-  // Get recent clubs (last 15, code + name only)
-  app.get("/api/clubs/recent", requireAuth, (req, res) => {
-    const clubs = getRecentClubs();
+  // Get recent clubs (last 15, code + name only, per user)
+  app.get("/api/clubs/recent", requireAuth, (req: any, res) => {
+    const clubs = getRecentClubs(req.authUserId);
     res.json({ clubs });
   });
 
   // Delete a recent club
-  app.delete("/api/clubs/recent/:code", requireAuth, (req, res) => {
+  app.delete("/api/clubs/recent/:code", requireAuth, (req: any, res) => {
     const { code } = req.params;
-    const deleted = deleteRecentClub(decodeURIComponent(code));
+    const deleted = deleteRecentClub(req.authUserId, decodeURIComponent(code));
     res.json({ success: deleted });
   });
 
