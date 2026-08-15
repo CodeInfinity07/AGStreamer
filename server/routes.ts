@@ -3,8 +3,6 @@ import { createServer, type Server } from "http";
 import { z } from "zod";
 import * as fs from "fs";
 import * as path from "path";
-import { storage, getResetTime } from "./storage";
-import { MAX_CONNECTIONS_PER_DAY, MAX_SESSION_DURATION_MS, type SessionLimitStatus } from "@shared/schema";
 import { getRecentClubs, addRecentClub, deleteRecentClub } from "./recent-clubs";
 import { getUsers, addUser, deleteUser, verifyLogin, type UserRole } from "./users";
 import { checkClub as checkVoiceFirewall, addClub as addFirewallClub, removeClub as removeFirewallClub, listClubs as listFirewallClubs } from "./voice-firewall";
@@ -19,8 +17,6 @@ interface VoiceSession {
   userId: string;
   joinedAt: Date;
   lastActivity: Date;
-  expiresAt: number;
-  expiryTimeout?: NodeJS.Timeout;
 }
 
 const sessions = new Map<string, VoiceSession>();
@@ -445,82 +441,28 @@ export async function registerRoutes(
     }
   });
 
-  // Get current limit status (protected)
-  app.get("/api/sessions/limits", requireAuth, async (req, res) => {
-    const token = req.headers.authorization?.replace("Bearer ", "") || "default";
-    const usage = await storage.getDailyUsage(token);
-    
-    const limitStatus: SessionLimitStatus = {
-      remainingConnections: Math.max(0, MAX_CONNECTIONS_PER_DAY - usage.count),
-      maxConnectionsPerDay: MAX_CONNECTIONS_PER_DAY,
-      usedToday: usage.count,
-      resetAt: getResetTime(),
-    };
-    
-    res.json(limitStatus);
-  });
-
   // Create a new voice session (protected)
   app.post("/api/sessions", requireAuth, async (req, res) => {
     try {
       const data = joinSessionSchema.parse(req.body);
-      const token = req.headers.authorization?.replace("Bearer ", "") || "default";
-      
-      // Check daily usage limit
-      const usage = await storage.getDailyUsage(token);
-      if (usage.count >= MAX_CONNECTIONS_PER_DAY) {
-        const limitStatus: SessionLimitStatus = {
-          remainingConnections: 0,
-          maxConnectionsPerDay: MAX_CONNECTIONS_PER_DAY,
-          usedToday: usage.count,
-          resetAt: getResetTime(),
-        };
-        res.status(429).json({ 
-          error: "Daily connection limit reached",
-          limits: limitStatus,
-        });
-        return;
-      }
-      
+
       const sessionId = crypto.randomUUID();
-      const now = Date.now();
-      const expiresAt = now + MAX_SESSION_DURATION_MS;
-      
+
       const session: VoiceSession = {
         id: sessionId,
         channelId: data.channelId,
         userId: data.userId,
         joinedAt: new Date(),
         lastActivity: new Date(),
-        expiresAt,
       };
-      
-      // Set auto-expiry timeout
-      session.expiryTimeout = setTimeout(() => {
-        console.log(`Session ${sessionId} expired after 5 minutes`);
-        sessions.delete(sessionId);
-      }, MAX_SESSION_DURATION_MS);
-      
+
       sessions.set(sessionId, session);
-      
-      // Increment usage count
-      const updatedUsage = await storage.incrementDailyUsage(token);
-      
-      const limitStatus: SessionLimitStatus = {
-        remainingConnections: Math.max(0, MAX_CONNECTIONS_PER_DAY - updatedUsage.count),
-        maxConnectionsPerDay: MAX_CONNECTIONS_PER_DAY,
-        usedToday: updatedUsage.count,
-        resetAt: getResetTime(),
-        sessionExpiresAt: expiresAt,
-        sessionRemainingMs: MAX_SESSION_DURATION_MS,
-      };
-      
+
       res.status(201).json({
         sessionId,
         channelId: session.channelId,
         userId: session.userId,
         joinedAt: session.joinedAt.toISOString(),
-        limits: limitStatus,
       });
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -562,12 +504,7 @@ export async function registerRoutes(
       res.status(404).json({ error: "Session not found" });
       return;
     }
-    
-    // Clear the expiry timeout
-    if (session.expiryTimeout) {
-      clearTimeout(session.expiryTimeout);
-    }
-    
+
     sessions.delete(sessionId);
     res.json({ status: "ended", sessionId });
   });
@@ -617,9 +554,6 @@ export async function registerRoutes(
     const staleThreshold = Date.now() - 5 * 60 * 1000;
     Array.from(sessions.entries()).forEach(([id, session]) => {
       if (session.lastActivity.getTime() < staleThreshold) {
-        if (session.expiryTimeout) {
-          clearTimeout(session.expiryTimeout);
-        }
         sessions.delete(id);
       }
     });
