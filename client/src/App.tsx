@@ -28,12 +28,9 @@ function AppRouter({
 
   return (
     <Switch>
-      <Route
-        path="/"
-        component={() => (
-          <VoiceBot onLogout={onLogout} onConnectionChange={onConnectionChange} isAdmin={isAdmin} />
-        )}
-      />
+      <Route path="/">
+        <VoiceBot onLogout={onLogout} onConnectionChange={onConnectionChange} isAdmin={isAdmin} />
+      </Route>
       <Route path="/users">
         {isAdmin ? <UsersPage currentUserEmail={currentUserEmail} /> : <Redirect to="/" />}
       </Route>
