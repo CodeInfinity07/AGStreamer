@@ -138,10 +138,40 @@ export function CodeInput({ onCredentialsFetched, disabled }: CodeInputProps) {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        <div className="space-y-2">
+          <Label>Fetch New Credentials</Label>
+          <div className="flex gap-2">
+            <Input
+              type="text"
+              placeholder="Enter channel code"
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              onKeyPress={handleKeyPress}
+              disabled={disabled || isLoading}
+              className="flex-1"
+              data-testid="input-channel-code"
+            />
+            <Button
+              onClick={() => handleFetchCredentials()}
+              disabled={disabled || isLoading || !code.trim()}
+              data-testid="button-fetch-credentials"
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Fetching...
+                </>
+              ) : (
+                "Fetch"
+              )}
+            </Button>
+          </div>
+        </div>
+
         {recentClubs.length > 0 && (
           <div className="space-y-2">
             <Label>Recent Clubs</Label>
-            <div className="max-h-56 overflow-y-auto rounded-md border divide-y" data-testid="list-recent-clubs">
+            <div className="h-56 overflow-y-auto rounded-md border divide-y" data-testid="list-recent-clubs">
               {recentClubs.map((club) => (
                 <div
                   key={club.code}
@@ -172,36 +202,6 @@ export function CodeInput({ onCredentialsFetched, disabled }: CodeInputProps) {
             </div>
           </div>
         )}
-
-        <div className="space-y-2">
-          <Label>Fetch New Credentials</Label>
-          <div className="flex gap-2">
-            <Input
-              type="text"
-              placeholder="Enter channel code"
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              onKeyPress={handleKeyPress}
-              disabled={disabled || isLoading}
-              className="flex-1"
-              data-testid="input-channel-code"
-            />
-            <Button
-              onClick={() => handleFetchCredentials()}
-              disabled={disabled || isLoading || !code.trim()}
-              data-testid="button-fetch-credentials"
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Fetching...
-                </>
-              ) : (
-                "Fetch"
-              )}
-            </Button>
-          </div>
-        </div>
 
         {fetchedClub && (
           <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
