@@ -5,10 +5,21 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
 
 interface LoginProps {
   onLoginSuccess: (role: string) => void;
+}
+
+// Doesn't throw on non-2xx (unlike apiRequest) so the caller can read the
+// server's error body (e.g. "Invalid credentials") instead of a generic
+// connection-error message.
+async function postLoginRequest(email: string, password: string): Promise<Response> {
+  return fetch("/api/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+    credentials: "include",
+  });
 }
 
 export default function Login({ onLoginSuccess }: LoginProps) {
@@ -31,11 +42,8 @@ export default function Login({ onLoginSuccess }: LoginProps) {
 
     setIsLoading(true);
     try {
-      const response = await apiRequest("POST", "/api/auth/login", {
-        email,
-        password,
-      });
-      
+      const response = await postLoginRequest(email, password);
+
       if (response.ok) {
         const data = await response.json();
         if (data.token) {
