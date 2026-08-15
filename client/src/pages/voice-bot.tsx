@@ -16,9 +16,10 @@ import { ConnectionStatus, type VoiceConfig, type SessionLimitStatus, MAX_SESSIO
 interface VoiceBotProps {
   onLogout: () => void;
   onConnectionChange?: (connected: boolean) => void;
+  isAdmin?: boolean;
 }
 
-export default function VoiceBot({ onLogout, onConnectionChange }: VoiceBotProps) {
+export default function VoiceBot({ onLogout, onConnectionChange, isAdmin }: VoiceBotProps) {
   const { toast } = useToast();
   const [config, setConfig] = useState<VoiceConfig>({
     appId: "",
@@ -339,6 +340,7 @@ export default function VoiceBot({ onLogout, onConnectionChange }: VoiceBotProps
           <CodeInput
             onCredentialsFetched={handleCredentialsFetched}
             disabled={isConnected || isConnecting}
+            isAdmin={isAdmin}
           />
 
           {clubName && !isConnected && (

@@ -1,5 +1,5 @@
 import { useLocation } from "wouter";
-import { Radio, Users } from "lucide-react";
+import { Radio, Users, ShieldAlert } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -80,6 +80,17 @@ export function AppSidebar({ isConnected, isAdmin }: AppSidebarProps) {
                   >
                     <Users className="w-4 h-4" />
                     <span>Users</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    onClick={() => setLocation("/firewall")}
+                    isActive={location === "/firewall"}
+                    disabled={isConnected}
+                    data-testid="button-open-firewall"
+                  >
+                    <ShieldAlert className="w-4 h-4" />
+                    <span>Firewall</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               </SidebarMenu>

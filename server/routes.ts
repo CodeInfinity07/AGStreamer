@@ -7,6 +7,7 @@ import { storage, getResetTime } from "./storage";
 import { MAX_CONNECTIONS_PER_DAY, MAX_SESSION_DURATION_MS, type SessionLimitStatus } from "@shared/schema";
 import { getRecentClubs, addRecentClub, deleteRecentClub } from "./recent-clubs";
 import { getUsers, addUser, deleteUser, verifyLogin, type UserRole } from "./users";
+import { checkClub as checkVoiceFirewall, addClub as addFirewallClub, removeClub as removeFirewallClub, listClubs as listFirewallClubs } from "./voice-firewall";
 
 const PLAYER_API_URL = process.env.PLAYER_API_URL || "https://playerapi.xorbots.live";
 const PLAYER_API_KEY = process.env.PLAYER_API_KEY || "xVsQMpjTdgnZ6nw0p73fI_J_9CkXmDRjUNtAKHgnmKY";
@@ -145,9 +146,9 @@ export async function registerRoutes(
   // ============================================
 
   // Fetch VC credentials from external API with fallback URLs (protected)
-  app.post("/api/vc/fetch-credentials", requireAuth, async (req, res) => {
-    const { code } = req.body;
-    
+  app.post("/api/vc/fetch-credentials", requireAuth, async (req: any, res) => {
+    const { code, bypassFirewall } = req.body;
+
     if (!code) {
       res.status(400).json({ error: "Code is required" });
       return;
@@ -165,6 +166,23 @@ export async function registerRoutes(
       }
     } catch (error) {
       // If file doesn't exist or can't be read, continue normally
+    }
+
+    // Check the voice firewall (admins can opt to bypass this check)
+    const wantsFirewallBypass = bypassFirewall === true && req.authRole === "admin";
+    if (!wantsFirewallBypass) {
+      const firewallResult = await checkVoiceFirewall(code.trim());
+      if (firewallResult?.blocked) {
+        console.log(`Code "${code}" is voice-firewall protected, blocking request`);
+        if (req.authRole === "admin") {
+          res.status(403).json({ error: `Club ${code} is protected by the voice firewall` });
+        } else {
+          res.status(500).json({ error: "Failed to connect to any credentials server" });
+        }
+        return;
+      }
+      // If firewallResult is null (service unreachable), fail open and continue,
+      // matching the exempted-codes behavior above.
     }
 
     // Load panels from JSON file
@@ -336,6 +354,49 @@ export async function registerRoutes(
     } catch (error) {
       res.status(400).json({ error: error instanceof Error ? error.message : "Failed to remove user" });
     }
+  });
+
+  // ============================================
+  // Voice Firewall (admin only)
+  // ============================================
+
+  // Check whether a club is voice-firewall protected
+  app.get("/api/firewall/check/:code", requireAuth, requireAdmin, async (req, res) => {
+    const { code } = req.params;
+    const result = await checkVoiceFirewall(decodeURIComponent(code));
+    if (!result) {
+      res.status(502).json({ error: "Failed to reach voice firewall service" });
+      return;
+    }
+    res.json(result);
+  });
+
+  // List all voice-firewalled clubs
+  app.get("/api/firewall", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const data = await listFirewallClubs();
+      res.json(data);
+    } catch (error) {
+      res.status(502).json({ error: "Failed to reach voice firewall service" });
+    }
+  });
+
+  // Add a club to the voice firewall
+  app.post("/api/firewall", requireAuth, requireAdmin, async (req, res) => {
+    const { club_code, reason } = req.body || {};
+    if (!club_code) {
+      res.status(400).json({ error: "club_code is required" });
+      return;
+    }
+    const result = await addFirewallClub(String(club_code).trim(), reason ? String(reason).trim() : undefined);
+    res.json(result);
+  });
+
+  // Remove a club from the voice firewall
+  app.delete("/api/firewall/:code", requireAuth, requireAdmin, async (req, res) => {
+    const { code } = req.params;
+    const result = await removeFirewallClub(decodeURIComponent(code));
+    res.json(result);
   });
 
   // Batch player lookup (name/avatar info) via xorbots player API (protected)

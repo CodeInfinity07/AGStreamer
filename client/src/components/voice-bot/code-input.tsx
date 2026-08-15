@@ -3,21 +3,22 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Key, CheckCircle, Trash2 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Loader2, Key, CheckCircle, Trash2, ShieldOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useQuery } from "@tanstack/react-query";
 
 // Doesn't throw on non-2xx (unlike apiRequest) so the caller can read the
 // server's error body instead of a generic connection-error message.
-async function postCredentialsRequest(code: string): Promise<Response> {
+async function postCredentialsRequest(code: string, bypassFirewall: boolean): Promise<Response> {
   const token = localStorage.getItem("authToken");
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (token) headers.Authorization = `Bearer ${token}`;
   return fetch("/api/vc/fetch-credentials", {
     method: "POST",
     headers,
-    body: JSON.stringify({ code }),
+    body: JSON.stringify({ code, bypassFirewall }),
     credentials: "include",
   });
 }
@@ -39,13 +40,15 @@ interface RecentClub {
 interface CodeInputProps {
   onCredentialsFetched: (credentials: Credentials) => void;
   disabled?: boolean;
+  isAdmin?: boolean;
 }
 
-export function CodeInput({ onCredentialsFetched, disabled }: CodeInputProps) {
+export function CodeInput({ onCredentialsFetched, disabled, isAdmin }: CodeInputProps) {
   const { toast } = useToast();
   const [code, setCode] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [fetchedClub, setFetchedClub] = useState<string | null>(null);
+  const [bypassFirewall, setBypassFirewall] = useState(false);
 
   const { data: recentClubsData } = useQuery<{ clubs: RecentClub[] }>({
     queryKey: ["/api/clubs/recent"],
@@ -67,7 +70,7 @@ export function CodeInput({ onCredentialsFetched, disabled }: CodeInputProps) {
 
     setIsLoading(true);
     try {
-      const response = await postCredentialsRequest(targetCode);
+      const response = await postCredentialsRequest(targetCode, isAdmin === true && bypassFirewall);
 
       if (response.ok) {
         const data = await response.json();
@@ -167,6 +170,22 @@ export function CodeInput({ onCredentialsFetched, disabled }: CodeInputProps) {
             </Button>
           </div>
         </div>
+
+        {isAdmin && (
+          <div className="flex items-center justify-between gap-2 px-1">
+            <Label htmlFor="bypass-firewall" className="text-xs text-muted-foreground flex items-center gap-1.5 cursor-pointer">
+              <ShieldOff className="w-3.5 h-3.5" />
+              Bypass voice firewall check
+            </Label>
+            <Switch
+              id="bypass-firewall"
+              checked={bypassFirewall}
+              onCheckedChange={setBypassFirewall}
+              disabled={disabled || isLoading}
+              data-testid="switch-bypass-firewall"
+            />
+          </div>
+        )}
 
         {recentClubs.length > 0 && (
           <div className="space-y-2">

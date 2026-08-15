@@ -10,6 +10,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import NotFound from "@/pages/not-found";
 import VoiceBot from "@/pages/voice-bot";
 import UsersPage from "@/pages/users";
+import FirewallPage from "@/pages/firewall";
 import Login from "@/pages/login";
 
 function AppRouter({
@@ -23,11 +24,21 @@ function AppRouter({
   onConnectionChange: (connected: boolean) => void;
   currentUserEmail?: string;
 }) {
+  const isAdmin = role === "admin";
+
   return (
     <Switch>
-      <Route path="/" component={() => <VoiceBot onLogout={onLogout} onConnectionChange={onConnectionChange} />} />
+      <Route
+        path="/"
+        component={() => (
+          <VoiceBot onLogout={onLogout} onConnectionChange={onConnectionChange} isAdmin={isAdmin} />
+        )}
+      />
       <Route path="/users">
-        {role === "admin" ? <UsersPage currentUserEmail={currentUserEmail} /> : <Redirect to="/" />}
+        {isAdmin ? <UsersPage currentUserEmail={currentUserEmail} /> : <Redirect to="/" />}
+      </Route>
+      <Route path="/firewall">
+        {isAdmin ? <FirewallPage /> : <Redirect to="/" />}
       </Route>
       <Route component={NotFound} />
     </Switch>
