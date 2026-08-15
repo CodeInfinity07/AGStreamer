@@ -1,31 +1,34 @@
 import { useState, useEffect } from "react";
-import { Switch, Route } from "wouter";
+import { Switch, Route, Redirect } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/theme-provider";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
-import { AppSidebar, type ConnectionMode } from "@/components/app-sidebar";
-import { UsersDialog } from "@/components/users-dialog";
+import { AppSidebar } from "@/components/app-sidebar";
 import NotFound from "@/pages/not-found";
 import VoiceBot from "@/pages/voice-bot";
+import UsersPage from "@/pages/users";
 import Login from "@/pages/login";
 
-function Router({
-  isAuthenticated,
+function AppRouter({
+  role,
   onLogout,
+  onConnectionChange,
+  currentUserEmail,
 }: {
-  isAuthenticated: boolean;
+  role: string | null;
   onLogout: () => void;
+  onConnectionChange: (connected: boolean) => void;
+  currentUserEmail?: string;
 }) {
-  if (!isAuthenticated) {
-    return null;
-  }
-
   return (
     <Switch>
-      <Route path="/" component={() => <VoiceBot onLogout={onLogout} />} />
+      <Route path="/" component={() => <VoiceBot onLogout={onLogout} onConnectionChange={onConnectionChange} />} />
+      <Route path="/users">
+        {role === "admin" ? <UsersPage currentUserEmail={currentUserEmail} /> : <Redirect to="/" />}
+      </Route>
       <Route component={NotFound} />
     </Switch>
   );
@@ -36,9 +39,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [role, setRole] = useState<string | null>(null);
-  const [connectionMode, setConnectionMode] = useState<ConnectionMode>("code");
   const [isConnected, setIsConnected] = useState(false);
-  const [usersDialogOpen, setUsersDialogOpen] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem("authToken");
@@ -117,28 +118,20 @@ function App() {
             <SidebarProvider style={sidebarStyle as React.CSSProperties}>
               <div className="flex min-h-screen w-full">
                 <AppSidebar
-                  mode={connectionMode}
-                  onModeChange={setConnectionMode}
                   isConnected={isConnected}
                   isAdmin={role === "admin"}
-                  onOpenUsers={() => setUsersDialogOpen(true)}
                 />
                 <main className="flex-1 overflow-auto">
                   <div className="sticky top-0 z-10 bg-background/80 backdrop-blur-sm border-b p-2">
                     <SidebarTrigger data-testid="button-sidebar-toggle" />
                   </div>
-                  <VoiceBot
+                  <AppRouter
+                    role={role}
                     onLogout={handleLogout}
                     onConnectionChange={setIsConnected}
-                  />
-                </main>
-                {role === "admin" && (
-                  <UsersDialog
-                    open={usersDialogOpen}
-                    onOpenChange={setUsersDialogOpen}
                     currentUserEmail={localStorage.getItem("userEmail") || undefined}
                   />
-                )}
+                </main>
               </div>
             </SidebarProvider>
           )}
