@@ -8,8 +8,18 @@ function getAuthHeaders(): Record<string, string> {
   return {};
 }
 
+// Fired when any request comes back 401 so a session wiped out from under
+// a logged-in user (e.g. a server restart) bounces them to login instead of
+// surfacing a confusing "Invalid or expired session" error mid-action.
+export function handleUnauthorized() {
+  localStorage.removeItem("authToken");
+  localStorage.removeItem("userEmail");
+  window.dispatchEvent(new Event("auth:unauthorized"));
+}
+
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
+    if (res.status === 401) handleUnauthorized();
     const text = (await res.text()) || res.statusText;
     throw new Error(`${res.status}: ${text}`);
   }
@@ -50,8 +60,11 @@ export const getQueryFn: <T>(options: {
       headers: getAuthHeaders(),
     });
 
-    if (unauthorizedBehavior === "returnNull" && res.status === 401) {
-      return null;
+    if (res.status === 401) {
+      handleUnauthorized();
+      if (unauthorizedBehavior === "returnNull") {
+        return null;
+      }
     }
 
     await throwIfResNotOk(res);

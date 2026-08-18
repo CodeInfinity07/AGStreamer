@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Switch } from "@/components/ui/switch";
 import { Loader2, Key, CheckCircle, Trash2, ShieldOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest, queryClient, handleUnauthorized } from "@/lib/queryClient";
 import { useQuery } from "@tanstack/react-query";
 
 // Doesn't throw on non-2xx (unlike apiRequest) so the caller can read the
@@ -84,6 +84,9 @@ export function CodeInput({ onCredentialsFetched, disabled, isAdmin }: CodeInput
             description: `Ready to join ${data.credentials.clubName || "channel"}`,
           });
         }
+      } else if (response.status === 401) {
+        handleUnauthorized();
+        setFetchedClub(null);
       } else {
         const errorData = await response.json();
         toast({

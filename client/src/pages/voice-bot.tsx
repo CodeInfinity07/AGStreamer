@@ -212,29 +212,31 @@ export default function VoiceBot({ onLogout, onConnectionChange, isAdmin }: Voic
       <div className="max-w-2xl mx-auto px-4 py-8 md:px-8 relative">
         <div className="absolute top-4 right-4 md:top-8 md:right-8 flex items-center gap-2">
           <ThemeToggle />
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={async () => {
-              try {
-                await apiRequest("POST", "/api/server/restart");
-                toast({
-                  title: "Server Restarting",
-                  description: "The server will restart shortly. Please wait...",
-                });
-              } catch (error) {
-                toast({
-                  title: "Restart Failed",
-                  description: "Failed to restart server",
-                  variant: "destructive",
-                });
-              }
-            }}
-            title="Restart Server"
-            data-testid="button-restart-server"
-          >
-            <RotateCw className="w-4 h-4" />
-          </Button>
+          {isAdmin && (
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={async () => {
+                try {
+                  await apiRequest("POST", "/api/server/restart");
+                  toast({
+                    title: "Server Restarting",
+                    description: "The server will restart shortly. Please wait...",
+                  });
+                } catch (error) {
+                  toast({
+                    title: "Restart Failed",
+                    description: "Failed to restart server",
+                    variant: "destructive",
+                  });
+                }
+              }}
+              title="Restart Server"
+              data-testid="button-restart-server"
+            >
+              <RotateCw className="w-4 h-4" />
+            </Button>
+          )}
           <Button
             variant="outline"
             size="icon"

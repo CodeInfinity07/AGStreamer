@@ -100,6 +100,16 @@ function App() {
     setIsAuthenticated(false);
   };
 
+  useEffect(() => {
+    const handleUnauthorizedEvent = () => {
+      setAuthToken(null);
+      setRole(null);
+      setIsAuthenticated(false);
+    };
+    window.addEventListener("auth:unauthorized", handleUnauthorizedEvent);
+    return () => window.removeEventListener("auth:unauthorized", handleUnauthorizedEvent);
+  }, []);
+
   if (isLoading) {
     return (
       <ThemeProvider defaultTheme="system">
